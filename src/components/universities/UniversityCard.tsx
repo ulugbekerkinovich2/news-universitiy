@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,12 @@ interface UniversityCardProps {
   onUpdate?: () => void;
 }
 
-export function UniversityCard({ university, onScrape, isScraping, onUpdate }: UniversityCardProps) {
+export const UniversityCard = memo(function UniversityCard({ 
+  university, 
+  onScrape, 
+  isScraping, 
+  onUpdate 
+}: UniversityCardProps) {
   const [editOpen, setEditOpen] = useState(false);
   const displayName = university.name_en || university.name_uz;
   const hasSSLError = university.last_error_message?.includes("certificate") || 
@@ -149,4 +154,4 @@ export function UniversityCard({ university, onScrape, isScraping, onUpdate }: U
       />
     </>
   );
-}
+});

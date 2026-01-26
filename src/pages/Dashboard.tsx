@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { JobProgress } from "@/components/dashboard/JobProgress";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -43,6 +43,7 @@ export default function Dashboard() {
     return saved !== null ? saved === "true" : true;
   });
   const previousJobsRef = useRef<Record<string, string>>({});
+  const isLoadingEventsRef = useRef<Set<string>>(new Set());
   const { toast } = useToast();
   const { play } = useNotificationSound();
 
@@ -51,12 +52,71 @@ export default function Dashboard() {
     localStorage.setItem("scrape-sound-enabled", String(soundEnabled));
   }, [soundEnabled]);
 
+  // Memoized handlers to prevent recreating functions
+  const loadStats = useCallback(async () => {
+    try {
+      const data = await getStats();
+      setStats(data);
+    } catch (error) {
+      console.error("Failed to load stats:", error);
+    }
+  }, []);
+
+  const loadActiveJobs = useCallback(async () => {
+    try {
+      const jobs = await getActiveJobs();
+      setActiveJobs(jobs);
+
+      // Track job statuses - only load events for jobs that don't have them yet
+      for (const job of jobs) {
+        previousJobsRef.current[job.id] = job.status;
+        
+        // Avoid loading events if already loading or already have them
+        if (!isLoadingEventsRef.current.has(job.id)) {
+          isLoadingEventsRef.current.add(job.id);
+          getScrapeJobEvents(job.id).then(events => {
+            setJobEvents(prev => ({ ...prev, [job.id]: events }));
+            isLoadingEventsRef.current.delete(job.id);
+          }).catch(() => {
+            isLoadingEventsRef.current.delete(job.id);
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load active jobs:", error);
+    }
+  }, []);
+
+  const loadRecentJobs = useCallback(async () => {
+    try {
+      const { data } = await getScrapeJobs({ limit: 5 });
+      setRecentJobs(data.filter(j => j.status !== 'QUEUED' && j.status !== 'RUNNING'));
+    } catch (error) {
+      console.error("Failed to load recent jobs:", error);
+    }
+  }, []);
+
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    await Promise.all([loadStats(), loadActiveJobs(), loadRecentJobs()]);
+    setIsLoading(false);
+  }, [loadStats, loadActiveJobs, loadRecentJobs]);
+
+  // Initial load
   useEffect(() => {
     loadData();
+  }, [loadData]);
 
-    // Subscribe to real-time updates
+  // Stable reference for real-time handler
+  const soundEnabledRef = useRef(soundEnabled);
+  useEffect(() => {
+    soundEnabledRef.current = soundEnabled;
+  }, [soundEnabled]);
+
+  // Real-time subscriptions - separated from other effects
+  useEffect(() => {
     const jobsChannel = supabase
-      .channel('scrape-jobs')
+      .channel('scrape-jobs-dashboard')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'scrape_jobs' },
@@ -66,13 +126,13 @@ export default function Dashboard() {
           
           // Check if job just completed or failed
           if (previousStatus && previousStatus !== job.status) {
-            if (job.status === 'DONE' && soundEnabled) {
+            if (job.status === 'DONE' && soundEnabledRef.current) {
               play('success');
               toast({
                 title: "✅ Scraping tugadi!",
                 description: `Job muvaffaqiyatli yakunlandi`,
               });
-            } else if (job.status === 'FAILED' && soundEnabled) {
+            } else if (job.status === 'FAILED' && soundEnabledRef.current) {
               play('error');
               toast({
                 title: "❌ Scraping xatosi",
@@ -85,6 +145,7 @@ export default function Dashboard() {
           // Update previous status
           previousJobsRef.current[job.id] = job.status;
           
+          // Debounce job reloads
           loadActiveJobs();
           loadRecentJobs();
         }
@@ -92,7 +153,7 @@ export default function Dashboard() {
       .subscribe();
 
     const eventsChannel = supabase
-      .channel('scrape-events')
+      .channel('scrape-events-dashboard')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'scrape_job_events' },
@@ -110,49 +171,9 @@ export default function Dashboard() {
       supabase.removeChannel(jobsChannel);
       supabase.removeChannel(eventsChannel);
     };
-  }, [soundEnabled, play, toast]);
+  }, [play, toast, loadActiveJobs, loadRecentJobs]);
 
-  const loadData = async () => {
-    setIsLoading(true);
-    await Promise.all([loadStats(), loadActiveJobs(), loadRecentJobs()]);
-    setIsLoading(false);
-  };
-
-  const loadStats = async () => {
-    try {
-      const data = await getStats();
-      setStats(data);
-    } catch (error) {
-      console.error("Failed to load stats:", error);
-    }
-  };
-
-  const loadActiveJobs = async () => {
-    try {
-      const jobs = await getActiveJobs();
-      setActiveJobs(jobs);
-
-      // Track job statuses and load events
-      for (const job of jobs) {
-        previousJobsRef.current[job.id] = job.status;
-        const events = await getScrapeJobEvents(job.id);
-        setJobEvents(prev => ({ ...prev, [job.id]: events }));
-      }
-    } catch (error) {
-      console.error("Failed to load active jobs:", error);
-    }
-  };
-
-  const loadRecentJobs = async () => {
-    try {
-      const { data } = await getScrapeJobs({ limit: 5 });
-      setRecentJobs(data.filter(j => j.status !== 'QUEUED' && j.status !== 'RUNNING'));
-    } catch (error) {
-      console.error("Failed to load recent jobs:", error);
-    }
-  };
-
-  const handleCancel = async (jobId: string) => {
+  const handleCancel = useCallback(async (jobId: string) => {
     try {
       await cancelScrapeJob(jobId);
       toast({ title: "Job cancelled" });
@@ -164,9 +185,9 @@ export default function Dashboard() {
         variant: "destructive",
       });
     }
-  };
+  }, [toast, loadActiveJobs]);
 
-  const handleScrapeAll = async () => {
+  const handleScrapeAll = useCallback(async () => {
     try {
       await createScrapeJob("ALL_UNIVERSITIES");
       toast({
@@ -181,7 +202,47 @@ export default function Dashboard() {
         variant: "destructive",
       });
     }
-  };
+  }, [toast, loadActiveJobs]);
+
+  // Memoized components to prevent unnecessary re-renders
+  const statsSection = useMemo(() => {
+    if (isLoading) {
+      return (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-28 rounded-xl" />
+          ))}
+        </div>
+      );
+    }
+    
+    if (!stats) return null;
+    
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatsCard
+          title="Total Universities"
+          value={stats.totalUniversities}
+          icon={GraduationCap}
+        />
+        <StatsCard
+          title="Total Posts"
+          value={stats.totalPosts}
+          icon={Newspaper}
+        />
+        <StatsCard
+          title="Completed"
+          value={stats.byStatus.DONE || 0}
+          icon={CheckCircle2}
+        />
+        <StatsCard
+          title="Failed"
+          value={stats.byStatus.FAILED || 0}
+          icon={XCircle}
+        />
+      </div>
+    );
+  }, [isLoading, stats]);
 
   return (
     <Layout>
@@ -221,36 +282,7 @@ export default function Dashboard() {
         </div>
 
         {/* Stats */}
-        {isLoading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-28 rounded-xl" />
-            ))}
-          </div>
-        ) : stats && (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatsCard
-              title="Total Universities"
-              value={stats.totalUniversities}
-              icon={GraduationCap}
-            />
-            <StatsCard
-              title="Total Posts"
-              value={stats.totalPosts}
-              icon={Newspaper}
-            />
-            <StatsCard
-              title="Completed"
-              value={stats.byStatus.DONE || 0}
-              icon={CheckCircle2}
-            />
-            <StatsCard
-              title="Failed"
-              value={stats.byStatus.FAILED || 0}
-              icon={XCircle}
-            />
-          </div>
-        )}
+        {statsSection}
 
         {/* Active Jobs */}
         <div className="space-y-4">

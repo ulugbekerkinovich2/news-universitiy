@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -32,7 +33,76 @@ const stageColors: Record<string, string> = {
   DONE: "bg-primary/20 text-primary border-primary/30",
 };
 
-export function JobProgress({ job, events = [], onCancel }: JobProgressProps) {
+// Memoized event item to prevent re-renders
+const EventItem = memo(function EventItem({ 
+  event, 
+  isFirst 
+}: { 
+  event: ScrapeJobEvent; 
+  isFirst: boolean;
+}) {
+  const counters = event.counters_json || {};
+  const hasError = event.message?.toLowerCase().includes('error') || 
+                   event.message?.toLowerCase().includes('failed');
+  
+  return (
+    <div 
+      className={cn(
+        "flex flex-col gap-1 p-2 rounded-md text-xs transition-all",
+        isFirst ? "bg-background border shadow-sm" : "bg-muted/50",
+        hasError && "border-destructive/30 bg-destructive/5"
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] text-muted-foreground font-mono">
+          {format(new Date(event.timestamp), "HH:mm:ss")}
+        </span>
+        <span className={cn(
+          "flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border",
+          stageColors[event.stage] || "bg-muted"
+        )}>
+          {stageIcons[event.stage]}
+          {event.stage}
+        </span>
+        {hasError && (
+          <AlertCircle className="h-3 w-3 text-destructive" />
+        )}
+      </div>
+      
+      {event.message && (
+        <p className={cn(
+          "text-muted-foreground pl-1",
+          hasError && "text-destructive"
+        )}>
+          {event.message}
+        </p>
+      )}
+      
+      {/* Show counters if available */}
+      {Object.keys(counters).length > 0 && (
+        <div className="flex flex-wrap gap-2 pl-1 mt-1">
+          {counters.pages_discovered !== undefined && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-info/10 text-info">
+              {counters.pages_discovered} sahifa topildi
+            </span>
+          )}
+          {counters.posts_found !== undefined && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+              {counters.posts_found} yangilik
+            </span>
+          )}
+          {counters.images_saved !== undefined && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/20 text-accent-foreground">
+              {counters.images_saved} rasm
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
+
+export const JobProgress = memo(function JobProgress({ job, events = [], onCancel }: JobProgressProps) {
   const totals = job.totals_json || {};
   const total = totals.total_universities || 1;
   const completed = (totals.completed || 0) + (totals.failed || 0) + (totals.no_news || 0) + (totals.no_source || 0);
@@ -42,6 +112,32 @@ export function JobProgress({ job, events = [], onCancel }: JobProgressProps) {
   // Get the current stage from latest event
   const latestEvent = events[0];
   const currentStage = latestEvent?.stage || 'DISCOVER';
+
+  // Memoize the stats grid
+  const statsGrid = useMemo(() => (
+    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+      <div className="text-center p-2 rounded-lg bg-primary/10 border border-primary/20">
+        <p className="text-lg font-bold text-primary">{totals.completed || 0}</p>
+        <p className="text-[10px] text-muted-foreground">Muvaffaqiyatli</p>
+      </div>
+      <div className="text-center p-2 rounded-lg bg-destructive/10 border border-destructive/20">
+        <p className="text-lg font-bold text-destructive">{totals.failed || 0}</p>
+        <p className="text-[10px] text-muted-foreground">Xato</p>
+      </div>
+      <div className="text-center p-2 rounded-lg bg-warning/10 border border-warning/20">
+        <p className="text-lg font-bold text-warning">{totals.no_source || 0}</p>
+        <p className="text-[10px] text-muted-foreground">Manba yo'q</p>
+      </div>
+      <div className="text-center p-2 rounded-lg bg-info/10 border border-info/20">
+        <p className="text-lg font-bold text-info">{totals.posts_found || 0}</p>
+        <p className="text-[10px] text-muted-foreground">Yangiliklar</p>
+      </div>
+      <div className="text-center p-2 rounded-lg bg-secondary border border-secondary/50">
+        <p className="text-lg font-bold text-secondary-foreground">{totals.images_saved || 0}</p>
+        <p className="text-[10px] text-muted-foreground">Rasmlar</p>
+      </div>
+    </div>
+  ), [totals.completed, totals.failed, totals.no_source, totals.posts_found, totals.images_saved]);
 
   return (
     <Card className={cn(
@@ -113,28 +209,7 @@ export function JobProgress({ job, events = [], onCancel }: JobProgressProps) {
         )}
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-          <div className="text-center p-2 rounded-lg bg-primary/10 border border-primary/20">
-            <p className="text-lg font-bold text-primary">{totals.completed || 0}</p>
-            <p className="text-[10px] text-muted-foreground">Muvaffaqiyatli</p>
-          </div>
-          <div className="text-center p-2 rounded-lg bg-destructive/10 border border-destructive/20">
-            <p className="text-lg font-bold text-destructive">{totals.failed || 0}</p>
-            <p className="text-[10px] text-muted-foreground">Xato</p>
-          </div>
-          <div className="text-center p-2 rounded-lg bg-warning/10 border border-warning/20">
-            <p className="text-lg font-bold text-warning">{totals.no_source || 0}</p>
-            <p className="text-[10px] text-muted-foreground">Manba yo'q</p>
-          </div>
-          <div className="text-center p-2 rounded-lg bg-info/10 border border-info/20">
-            <p className="text-lg font-bold text-info">{totals.posts_found || 0}</p>
-            <p className="text-[10px] text-muted-foreground">Yangiliklar</p>
-          </div>
-          <div className="text-center p-2 rounded-lg bg-secondary border border-secondary/50">
-            <p className="text-lg font-bold text-secondary-foreground">{totals.images_saved || 0}</p>
-            <p className="text-[10px] text-muted-foreground">Rasmlar</p>
-          </div>
-        </div>
+        {statsGrid}
 
         {/* Live Event Log */}
         {events.length > 0 && (
@@ -151,68 +226,13 @@ export function JobProgress({ job, events = [], onCancel }: JobProgressProps) {
             
             <ScrollArea className="h-48 rounded-lg border bg-muted/30 p-2">
               <div className="space-y-1.5">
-                {events.map((event, index) => {
-                  const counters = event.counters_json || {};
-                  const hasError = event.message?.toLowerCase().includes('error') || 
-                                   event.message?.toLowerCase().includes('failed');
-                  
-                  return (
-                    <div 
-                      key={event.id}
-                      className={cn(
-                        "flex flex-col gap-1 p-2 rounded-md text-xs transition-all",
-                        index === 0 ? "bg-background border shadow-sm" : "bg-muted/50",
-                        hasError && "border-destructive/30 bg-destructive/5"
-                      )}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground font-mono">
-                          {format(new Date(event.timestamp), "HH:mm:ss")}
-                        </span>
-                        <span className={cn(
-                          "flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border",
-                          stageColors[event.stage] || "bg-muted"
-                        )}>
-                          {stageIcons[event.stage]}
-                          {event.stage}
-                        </span>
-                        {hasError && (
-                          <AlertCircle className="h-3 w-3 text-destructive" />
-                        )}
-                      </div>
-                      
-                      {event.message && (
-                        <p className={cn(
-                          "text-muted-foreground pl-1",
-                          hasError && "text-destructive"
-                        )}>
-                          {event.message}
-                        </p>
-                      )}
-                      
-                      {/* Show counters if available */}
-                      {Object.keys(counters).length > 0 && (
-                        <div className="flex flex-wrap gap-2 pl-1 mt-1">
-                          {counters.pages_discovered !== undefined && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-info/10 text-info">
-                              {counters.pages_discovered} sahifa topildi
-                            </span>
-                          )}
-                          {counters.posts_found !== undefined && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">
-                              {counters.posts_found} yangilik
-                            </span>
-                          )}
-                          {counters.images_saved !== undefined && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/20 text-accent-foreground">
-                              {counters.images_saved} rasm
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                {events.map((event, index) => (
+                  <EventItem 
+                    key={event.id} 
+                    event={event} 
+                    isFirst={index === 0} 
+                  />
+                ))}
               </div>
             </ScrollArea>
           </div>
@@ -231,4 +251,4 @@ export function JobProgress({ job, events = [], onCancel }: JobProgressProps) {
       </CardContent>
     </Card>
   );
-}
+});
