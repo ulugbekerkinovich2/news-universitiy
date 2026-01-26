@@ -1,14 +1,30 @@
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import type { NewsPost } from "@/types/database";
-import { Calendar, ExternalLink, Building2, ImageOff } from "lucide-react";
+import { Calendar, ExternalLink, Building2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
+import { deleteNewsPost } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 interface NewsCardProps {
   post: NewsPost;
   showUniversity?: boolean;
+  showDelete?: boolean;
+  onDelete?: () => void;
 }
 
 const languageLabels: Record<string, string> = {
@@ -18,10 +34,32 @@ const languageLabels: Record<string, string> = {
   unknown: "Unknown",
 };
 
-export function NewsCard({ post, showUniversity = true }: NewsCardProps) {
+export function NewsCard({ post, showUniversity = true, showDelete = false, onDelete }: NewsCardProps) {
   const [imageError, setImageError] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const { toast } = useToast();
   const coverImage = post.cover_image?.original_url || post.cover_image?.stored_url;
   
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await deleteNewsPost(post.id);
+      toast({
+        title: "Post o'chirildi",
+        description: "Yangilik muvaffaqiyatli o'chirildi",
+      });
+      onDelete?.();
+    } catch (error) {
+      toast({
+        title: "Xatolik",
+        description: error instanceof Error ? error.message : "Post o'chirishda xatolik",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <Card className="card-hover overflow-hidden">
       <CardContent className="p-0">
@@ -84,18 +122,52 @@ export function NewsCard({ post, showUniversity = true }: NewsCardProps) {
                 to={`/news/${post.id}`}
                 className="text-sm font-medium text-primary hover:underline"
               >
-                Read More →
+                Batafsil →
               </Link>
 
-              <a
-                href={post.source_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-              >
-                <ExternalLink className="h-3 w-3" />
-                Original
-              </a>
+              <div className="flex items-center gap-2">
+                {showDelete && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        disabled={isDeleting}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Postni o'chirish</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Ushbu yangilikni o'chirishni xohlaysizmi? Bu amalni ortga qaytarib bo'lmaydi.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleDelete}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          O'chirish
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+
+                <a
+                  href={post.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  Original
+                </a>
+              </div>
             </div>
           </div>
         </div>

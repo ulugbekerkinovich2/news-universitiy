@@ -301,40 +301,60 @@ export function extractVideos(html: string): Array<{ url: string; provider: stri
   return videos;
 }
 
-// Extract article content
+// Extract article content - improved to get cleaner content
 export function extractArticleContent(html: string): { html: string; text: string } {
-  // Try to find article/main content
   let content = '';
   
-  // Look for article tag
-  const articleMatch = html.match(/<article[^>]*>([\s\S]*?)<\/article>/i);
-  if (articleMatch) {
-    content = articleMatch[1];
-  } else {
-    // Look for main content div
-    const mainMatch = html.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
-    if (mainMatch) {
-      content = mainMatch[1];
-    } else {
-      // Look for common content class patterns
-      const contentDivMatch = html.match(/<div[^>]+class=["'][^"']*(?:content|article|post|entry|news)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
-      if (contentDivMatch) {
-        content = contentDivMatch[1];
-      } else {
-        // Fallback: extract body content
-        const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-        content = bodyMatch ? bodyMatch[1] : html;
-      }
+  // Try specific content selectors first (most specific to least)
+  const contentPatterns = [
+    // Look for blog/news detail content
+    /<div[^>]+class=["'][^"']*blog__details__content["'][^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class=["'][^"']*news[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class=["'][^"']*post[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class=["'][^"']*article[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class=["'][^"']*entry[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class=["'][^"']*single[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
+    // Article tag
+    /<article[^>]*>([\s\S]*?)<\/article>/i,
+    // Main tag
+    /<main[^>]*>([\s\S]*?)<\/main>/i,
+  ];
+  
+  for (const pattern of contentPatterns) {
+    const match = html.match(pattern);
+    if (match && match[1].length > 100) {
+      content = match[1];
+      break;
     }
   }
   
-  // Remove script and style tags
+  // If no specific content found, try broader patterns
+  if (!content) {
+    const contentDivMatch = html.match(/<div[^>]+class=["'][^"']*(?:content|article|post|entry|news)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+    if (contentDivMatch) {
+      content = contentDivMatch[1];
+    } else {
+      const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+      content = bodyMatch ? bodyMatch[1] : html;
+    }
+  }
+  
+  // Remove unwanted elements
   content = content.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
   content = content.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
   content = content.replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '');
   content = content.replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '');
   content = content.replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '');
   content = content.replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, '');
+  content = content.replace(/<form[^>]*>[\s\S]*?<\/form>/gi, '');
+  content = content.replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '');
+  content = content.replace(/<!--[\s\S]*?-->/gi, '');
+  
+  // Remove social media widgets, share buttons, breadcrumbs
+  content = content.replace(/<div[^>]+class=["'][^"']*(?:share|social|breadcrumb|sidebar|widget|comment)[^"']*["'][^>]*>[\s\S]*?<\/div>/gi, '');
+  
+  // Remove data URIs (base64 images)
+  content = content.replace(/src=["']data:image[^"']+["']/gi, 'src=""');
   
   // Extract plain text
   const text = content

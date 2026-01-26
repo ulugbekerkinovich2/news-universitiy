@@ -227,7 +227,13 @@ export default function UniversityDetail() {
           <>
             <div className="space-y-4">
               {posts.map((post) => (
-                <NewsCard key={post.id} post={post} showUniversity={false} />
+                <NewsCard 
+                  key={post.id} 
+                  post={post} 
+                  showUniversity={false} 
+                  showDelete={true}
+                  onDelete={loadPosts}
+                />
               ))}
             </div>
 

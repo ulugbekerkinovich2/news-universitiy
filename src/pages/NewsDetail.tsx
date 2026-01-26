@@ -1,13 +1,25 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getNewsPost } from "@/lib/api";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { getNewsPost, deleteNewsPost } from "@/lib/api";
 import type { NewsPost } from "@/types/database";
+import { useToast } from "@/hooks/use-toast";
 import { 
   ArrowLeft, 
   ExternalLink, 
@@ -15,7 +27,8 @@ import {
   Building2,
   Newspaper,
   Image as ImageIcon,
-  Video
+  Video,
+  Trash2
 } from "lucide-react";
 import { format } from "date-fns";
 import DOMPurify from "dompurify";
@@ -29,8 +42,11 @@ const languageLabels: Record<string, string> = {
 
 export default function NewsDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [post, setPost] = useState<NewsPost | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (id) {
@@ -48,6 +64,38 @@ export default function NewsDetail() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleDelete = async () => {
+    if (!post) return;
+    setIsDeleting(true);
+    try {
+      await deleteNewsPost(post.id);
+      toast({
+        title: "Post o'chirildi",
+        description: "Yangilik muvaffaqiyatli o'chirildi",
+      });
+      navigate('/news');
+    } catch (error) {
+      toast({
+        title: "Xatolik",
+        description: error instanceof Error ? error.message : "Post o'chirishda xatolik",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Clean up content - remove base64 images, extra HTML
+  const cleanContent = (html: string | null): string | null => {
+    if (!html) return null;
+    // Remove base64 images
+    let cleaned = html.replace(/<img[^>]+src=["']data:image[^"']*["'][^>]*>/gi, '');
+    // Remove empty tags
+    cleaned = cleaned.replace(/<p>\s*<\/p>/gi, '');
+    cleaned = cleaned.replace(/<div>\s*<\/div>/gi, '');
+    return cleaned;
   };
 
   if (isLoading) {
@@ -82,23 +130,56 @@ export default function NewsDetail() {
     );
   }
 
-  const images = post.media_assets?.filter(m => m.type === 'image') || [];
+  const images = post.media_assets?.filter(m => m.type === 'image' && !m.original_url.startsWith('data:')) || [];
   const videos = post.media_assets?.filter(m => m.type === 'video') || [];
 
-  const sanitizedHtml = post.content_html 
-    ? DOMPurify.sanitize(post.content_html, { USE_PROFILES: { html: true } })
+  const sanitizedHtml = cleanContent(post.content_html)
+    ? DOMPurify.sanitize(cleanContent(post.content_html)!, { USE_PROFILES: { html: true } })
     : null;
 
   return (
     <Layout>
       <div className="max-w-3xl mx-auto space-y-6">
-        <Link 
-          to="/news" 
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to News
-        </Link>
+        <div className="flex items-center justify-between">
+          <Link 
+            to="/news" 
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Yangiliklarla qaytish
+          </Link>
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                disabled={isDeleting}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                O'chirish
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Postni o'chirish</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Ushbu yangilikni o'chirishni xohlaysizmi? Bu amalni ortga qaytarib bo'lmaydi.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Bekor qilish</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDelete}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  O'chirish
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
 
         <article className="space-y-6">
           <header className="space-y-4">
@@ -106,7 +187,7 @@ export default function NewsDetail() {
               {post.published_at && (
                 <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
                   <Calendar className="h-4 w-4" />
-                  {format(new Date(post.published_at), "MMMM d, yyyy")}
+                  {format(new Date(post.published_at), "d MMMM, yyyy")}
                 </span>
               )}
 
@@ -125,15 +206,9 @@ export default function NewsDetail() {
               </Badge>
             </div>
 
-            <h1 className="font-heading text-3xl md:text-4xl font-bold text-foreground text-balance">
+            <h1 className="font-heading text-2xl md:text-3xl font-bold text-foreground text-balance">
               {post.title}
             </h1>
-
-            {post.summary && (
-              <p className="text-lg text-muted-foreground leading-relaxed">
-                {post.summary}
-              </p>
-            )}
           </header>
 
           {/* Content */}
