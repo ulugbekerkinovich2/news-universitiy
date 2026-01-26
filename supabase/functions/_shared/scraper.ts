@@ -8,6 +8,7 @@ import {
   createHashFingerprint,
   createSlug,
 } from './html-parser.ts';
+import { isValidExternalUrl } from './url-validator.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -31,6 +32,12 @@ interface ScrapeProgress {
 }
 
 async function fetchWithRetry(url: string, retries = MAX_RETRIES): Promise<string | null> {
+  // SSRF Protection: Validate URL before any fetch
+  if (!isValidExternalUrl(url)) {
+    console.log(`Blocked unsafe URL: ${url}`);
+    return null;
+  }
+  
   for (let i = 0; i < retries; i++) {
     try {
       const controller = new AbortController();
