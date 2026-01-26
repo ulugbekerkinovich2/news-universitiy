@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { UniversityCard } from "@/components/universities/UniversityCard";
 import { UniversitiesFilters } from "@/components/universities/UniversitiesFilters";
@@ -32,38 +32,26 @@ export default function Index() {
   const debouncedSearch = useDebounce(search, 300);
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadRegions();
-    loadStats();
-  }, []);
-
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedSearch, region, status]);
-
-  useEffect(() => {
-    loadUniversities();
-  }, [page, debouncedSearch, region, status]);
-
-  const loadRegions = async () => {
+  // Memoized load functions
+  const loadRegions = useCallback(async () => {
     try {
       const data = await getRegions();
       setRegions(data);
     } catch (error) {
       console.error("Failed to load regions:", error);
     }
-  };
+  }, []);
 
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       const data = await getStats();
       setStats(data);
     } catch (error) {
       console.error("Failed to load stats:", error);
     }
-  };
+  }, []);
 
-  const loadUniversities = async () => {
+  const loadUniversities = useCallback(async () => {
     setIsLoading(true);
     try {
       const { data, count } = await getUniversities({
@@ -84,9 +72,25 @@ export default function Index() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [debouncedSearch, region, status, page, toast]);
 
-  const handleScrape = async (universityId: string) => {
+  // Initial load - only once
+  useEffect(() => {
+    loadRegions();
+    loadStats();
+  }, [loadRegions, loadStats]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, region, status]);
+
+  // Load universities when filters or page change
+  useEffect(() => {
+    loadUniversities();
+  }, [loadUniversities]);
+
+  const handleScrape = useCallback(async (universityId: string) => {
     setScrapingId(universityId);
     try {
       await createScrapeJob("SINGLE_UNIVERSITY", universityId);
@@ -104,9 +108,9 @@ export default function Index() {
     } finally {
       setScrapingId(null);
     }
-  };
+  }, [toast, loadUniversities]);
 
-  const handleScrapeAll = async () => {
+  const handleScrapeAll = useCallback(async () => {
     try {
       await createScrapeJob("ALL_UNIVERSITIES");
       toast({
@@ -120,9 +124,86 @@ export default function Index() {
         variant: "destructive",
       });
     }
-  };
+  }, [toast]);
 
   const totalPages = Math.ceil(totalCount / LIMIT);
+
+  // Memoized stats section
+  const statsSection = useMemo(() => {
+    if (!stats) return null;
+    
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatsCard
+          title="Total Universities"
+          value={stats.totalUniversities}
+          icon={GraduationCap}
+        />
+        <StatsCard
+          title="Total News Posts"
+          value={stats.totalPosts}
+          icon={Newspaper}
+        />
+        <StatsCard
+          title="Scraped"
+          value={stats.byStatus.DONE || 0}
+          icon={CheckCircle2}
+          description="Successfully scraped"
+        />
+        <StatsCard
+          title="Needs Attention"
+          value={(stats.byStatus.FAILED || 0) + (stats.byStatus.NO_SOURCE || 0)}
+          icon={AlertTriangle}
+          description="Failed or no source"
+        />
+      </div>
+    );
+  }, [stats]);
+
+  // Memoized grid
+  const universitiesGrid = useMemo(() => {
+    if (isLoading) {
+      return (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-48 rounded-xl" />
+          ))}
+        </div>
+      );
+    }
+    
+    if (universities.length === 0) {
+      return (
+        <EmptyState
+          icon={Building2}
+          title="No universities found"
+          description="No universities match your search criteria. Try adjusting your filters or import universities from JSON."
+        />
+      );
+    }
+    
+    return (
+      <>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {universities.map((uni) => (
+            <UniversityCard
+              key={uni.id}
+              university={uni}
+              onScrape={handleScrape}
+              isScraping={scrapingId === uni.id}
+              onUpdate={loadUniversities}
+            />
+          ))}
+        </div>
+
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+        />
+      </>
+    );
+  }, [isLoading, universities, handleScrape, scrapingId, loadUniversities, page, totalPages]);
 
   return (
     <Layout>
@@ -150,32 +231,7 @@ export default function Index() {
         </div>
 
         {/* Stats */}
-        {stats && (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatsCard
-              title="Total Universities"
-              value={stats.totalUniversities}
-              icon={GraduationCap}
-            />
-            <StatsCard
-              title="Total News Posts"
-              value={stats.totalPosts}
-              icon={Newspaper}
-            />
-            <StatsCard
-              title="Scraped"
-              value={stats.byStatus.DONE || 0}
-              icon={CheckCircle2}
-              description="Successfully scraped"
-            />
-            <StatsCard
-              title="Needs Attention"
-              value={(stats.byStatus.FAILED || 0) + (stats.byStatus.NO_SOURCE || 0)}
-              icon={AlertTriangle}
-              description="Failed or no source"
-            />
-          </div>
-        )}
+        {statsSection}
 
         {/* Filters */}
         <UniversitiesFilters
@@ -189,39 +245,7 @@ export default function Index() {
         />
 
         {/* Universities Grid */}
-        {isLoading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-48 rounded-xl" />
-            ))}
-          </div>
-        ) : universities.length === 0 ? (
-          <EmptyState
-            icon={Building2}
-            title="No universities found"
-            description="No universities match your search criteria. Try adjusting your filters or import universities from JSON."
-          />
-        ) : (
-          <>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {universities.map((uni) => (
-                <UniversityCard
-                  key={uni.id}
-                  university={uni}
-                  onScrape={handleScrape}
-                  isScraping={scrapingId === uni.id}
-                  onUpdate={loadUniversities}
-                />
-              ))}
-            </div>
-
-            <Pagination
-              page={page}
-              totalPages={totalPages}
-              onPageChange={setPage}
-            />
-          </>
-        )}
+        {universitiesGrid}
       </div>
     </Layout>
   );
