@@ -145,9 +145,23 @@ serve(async (req) => {
       noNews: 0,
       noSource: 0,
       postsFound: 0,
+      imagesSaved: 0,
+      videosSaved: 0,
     };
 
     for (const university of universities) {
+      // Check if job was cancelled
+      const { data: currentJob } = await supabaseService
+        .from('scrape_jobs')
+        .select('status')
+        .eq('id', job.id)
+        .single();
+      
+      if (currentJob?.status === 'CANCELLED') {
+        console.log(`Job ${job.id} was cancelled, stopping...`);
+        break;
+      }
+
       if (!university.website) {
         await supabaseService
           .from('universities')
@@ -182,6 +196,8 @@ serve(async (req) => {
           if (scrapeResult.postsFound > 0) {
             results.completed++;
             results.postsFound += scrapeResult.postsFound;
+            results.imagesSaved += scrapeResult.imagesSaved || 0;
+            results.videosSaved += scrapeResult.videosSaved || 0;
           } else {
             results.noNews++;
           }
@@ -200,6 +216,8 @@ serve(async (req) => {
               no_news: results.noNews,
               no_source: results.noSource,
               posts_found: results.postsFound,
+              images_saved: results.imagesSaved,
+              videos_saved: results.videosSaved,
             },
           })
           .eq('id', job.id);
@@ -210,22 +228,33 @@ serve(async (req) => {
       }
     }
 
-    // Mark job as complete
-    await supabaseService
+    // Check if job was cancelled before marking complete
+    const { data: finalJob } = await supabaseService
       .from('scrape_jobs')
-      .update({
-        status: results.failed === universities.length ? 'FAILED' : 'DONE',
-        finished_at: new Date().toISOString(),
-        totals_json: {
-          total_universities: universities.length,
-          completed: results.completed,
-          failed: results.failed,
-          no_news: results.noNews,
-          no_source: results.noSource,
-          posts_found: results.postsFound,
-        },
-      })
-      .eq('id', job.id);
+      .select('status')
+      .eq('id', job.id)
+      .single();
+    
+    // Only update status if not already cancelled
+    if (finalJob?.status !== 'CANCELLED') {
+      await supabaseService
+        .from('scrape_jobs')
+        .update({
+          status: results.failed === universities.length ? 'FAILED' : 'DONE',
+          finished_at: new Date().toISOString(),
+          totals_json: {
+            total_universities: universities.length,
+            completed: results.completed,
+            failed: results.failed,
+            no_news: results.noNews,
+            no_source: results.noSource,
+            posts_found: results.postsFound,
+            images_saved: results.imagesSaved,
+            videos_saved: results.videosSaved,
+          },
+        })
+        .eq('id', job.id);
+    }
 
     return new Response(
       JSON.stringify({

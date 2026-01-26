@@ -111,7 +111,7 @@ export async function scrapeUniversity(
   jobId: string,
   universityId: string,
   websiteUrl: string
-): Promise<{ success: boolean; postsFound: number; error?: string }> {
+): Promise<{ success: boolean; postsFound: number; imagesSaved: number; videosSaved: number; error?: string }> {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   
   const progress: ScrapeProgress = {
@@ -238,7 +238,7 @@ export async function scrapeUniversity(
       progress.stage = 'DONE';
       await logProgress(supabase, progress);
       
-      return { success: true, postsFound: 0 };
+      return { success: true, postsFound: 0, imagesSaved: 0, videosSaved: 0 };
     }
     
     // Step 3: Parse each news post
@@ -415,7 +415,12 @@ export async function scrapeUniversity(
     progress.stage = 'DONE';
     await logProgress(supabase, progress);
     
-    return { success: true, postsFound: progress.postsSaved };
+    return { 
+      success: true, 
+      postsFound: progress.postsSaved,
+      imagesSaved: progress.imagesSaved,
+      videosSaved: progress.videosSaved,
+    };
     
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -433,6 +438,6 @@ export async function scrapeUniversity(
     progress.stage = 'DONE';
     await logProgress(supabase, progress);
     
-    return { success: false, postsFound: 0, error: errorMessage };
+    return { success: false, postsFound: 0, imagesSaved: 0, videosSaved: 0, error: errorMessage };
   }
 }
