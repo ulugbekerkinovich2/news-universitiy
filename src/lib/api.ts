@@ -238,7 +238,14 @@ export async function getActiveJobs(): Promise<ScrapeJob[]> {
 }
 
 export async function createScrapeJob(scope: 'ALL_UNIVERSITIES' | 'SINGLE_UNIVERSITY', universityId?: string): Promise<ScrapeJob> {
-  // Call the edge function to start the scrape job
+  // Get current session for auth token
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  if (!session) {
+    throw new Error('Authentication required');
+  }
+
+  // Call the edge function with auth token
   const { data, error } = await supabase.functions.invoke('start-scrape-job', {
     body: { scope, universityId },
   });
