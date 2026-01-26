@@ -18,6 +18,7 @@ export interface ExtractedPost {
 // Common news URL patterns
 const NEWS_URL_PATTERNS = [
   /\/news/i,
+  /\/new(?:\/|$)/i,  // /new or /new/ but not /news
   /\/yangiliklar/i,
   /\/novosti/i,
   /\/press/i,
@@ -123,6 +124,7 @@ export function findNewsListingUrls(html: string, baseUrl: string): string[] {
   const links = extractLinks(html, baseUrl);
   const newsListingPatterns = [
     /\/news\/?$/i,
+    /\/new\/?$/i,  // /new or /new/
     /\/yangiliklar\/?$/i,
     /\/novosti\/?$/i,
     /\/press\/?$/i,
