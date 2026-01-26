@@ -152,7 +152,7 @@ export async function getNewsPost(id: string): Promise<NewsPost | null> {
     .select(`
       *,
       university:universities(*),
-      media_assets(*)
+      media_assets:media_assets!media_assets_post_id_fkey(*)
     `)
     .eq('id', id)
     .maybeSingle();
@@ -267,7 +267,7 @@ export async function exportNewsPosts(filters: ExportFilters): Promise<ExportedN
     .select(`
       *,
       university:universities(*),
-      media_assets(*)
+      media_assets:media_assets!media_assets_post_id_fkey(*)
     `);
 
   if (filters.university_id) {

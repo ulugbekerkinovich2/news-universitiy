@@ -46,6 +46,18 @@ async function fetchWithRetry(url: string, retries = MAX_RETRIES): Promise<strin
       
       clearTimeout(timeoutId);
       
+      // Skip 404, 410 (gone), and other client errors - don't retry
+      if (response.status === 404 || response.status === 410) {
+        console.log(`Skipping ${url}: ${response.status} Not Found`);
+        return null;
+      }
+      
+      // Skip server errors after last retry
+      if (response.status >= 500 && i === retries - 1) {
+        console.log(`Skipping ${url}: Server error ${response.status}`);
+        return null;
+      }
+      
       if (response.ok) {
         return await response.text();
       }
@@ -55,8 +67,9 @@ async function fetchWithRetry(url: string, retries = MAX_RETRIES): Promise<strin
         await sleep(REQUEST_DELAY * (i + 2));
       }
     } catch (error) {
-      console.error(`Fetch attempt ${i + 1} failed for ${url}:`, error);
+      // Only log and retry for network errors, not for aborted requests on last attempt
       if (i < retries - 1) {
+        console.error(`Fetch attempt ${i + 1} failed for ${url}:`, error);
         await sleep(REQUEST_DELAY * (i + 1));
       }
     }
@@ -217,15 +230,25 @@ export async function scrapeUniversity(
       await sleep(REQUEST_DELAY);
       const postHtml = await fetchWithRetry(postUrl);
       
-      if (postHtml) {
-        progress.pagesScanned++;
-        const postData = parseNewsPost(postHtml, postUrl);
-        
-        // Skip if title is too short or generic
-        if (postData.title.length > 5 && postData.title !== 'Untitled') {
-          posts.push({ data: postData, url: postUrl });
-        }
+      // Skip if fetch failed (404, timeout, error, etc.)
+      if (!postHtml) {
+        continue;
       }
+      
+      progress.pagesScanned++;
+      const postData = parseNewsPost(postHtml, postUrl);
+      
+      // Skip if title is too short, generic, or looks like an error page
+      if (postData.title.length <= 5 || 
+          postData.title === 'Untitled' ||
+          postData.title.toLowerCase().includes('404') ||
+          postData.title.toLowerCase().includes('not found') ||
+          postData.title.toLowerCase().includes('error') ||
+          postData.contentText.length < 50) {
+        continue;
+      }
+      
+      posts.push({ data: postData, url: postUrl });
     }
     
     // Step 4: Save posts
