@@ -2,6 +2,7 @@ import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-
 import {
   extractLinks,
   findNewsListingUrls,
+  findNewsLinksByText,
   extractNewsPostLinks,
   parseNewsPost,
   createHashFingerprint,
@@ -135,8 +136,11 @@ export async function scrapeUniversity(
       throw new Error('Failed to fetch university homepage');
     }
     
-    // Find news listing pages
+    // Find news listing pages from URL patterns
     const newsListingUrls = findNewsListingUrls(homeHtml, websiteUrl);
+    
+    // Find news links by link text (e.g. "Yangiliklar", "News")
+    const newsLinksByText = findNewsLinksByText(homeHtml, websiteUrl);
     
     // Also check common news URL patterns
     const commonNewsUrls = [
@@ -146,12 +150,22 @@ export async function scrapeUniversity(
       `${baseUrl}/yangiliklar/`,
       `${baseUrl}/novosti`,
       `${baseUrl}/novosti/`,
+      `${baseUrl}/posts`,
+      `${baseUrl}/posts/`,
+      `${baseUrl}/maqolalar`,
+      `${baseUrl}/xabarlar`,
+      `${baseUrl}/axborot`,
       `${baseUrl}/uz/news`,
+      `${baseUrl}/uz/yangiliklar`,
       `${baseUrl}/ru/news`,
+      `${baseUrl}/ru/novosti`,
       `${baseUrl}/en/news`,
+      `${baseUrl}/uz/posts`,
+      `${baseUrl}/ru/posts`,
+      `${baseUrl}/en/posts`,
     ];
     
-    const allNewsUrls = [...new Set([...newsListingUrls, ...commonNewsUrls])];
+    const allNewsUrls = [...new Set([...newsListingUrls, ...newsLinksByText, ...commonNewsUrls])];
     progress.pagesDiscovered = allNewsUrls.length;
     
     // Step 2: Crawl news listing pages to find post links

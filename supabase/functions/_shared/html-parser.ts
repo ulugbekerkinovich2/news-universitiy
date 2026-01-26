@@ -17,16 +17,25 @@ export interface ExtractedPost {
 
 // Common news URL patterns
 const NEWS_URL_PATTERNS = [
-  /\/news\//i,
-  /\/yangiliklar\//i,
-  /\/novosti\//i,
+  /\/news/i,
+  /\/yangiliklar/i,
+  /\/novosti/i,
   /\/press/i,
-  /\/media\//i,
-  /\/blog\//i,
-  /\/articles?\//i,
-  /\/post\//i,
+  /\/media/i,
+  /\/blog/i,
+  /\/articles?/i,
+  /\/posts?/i,
   /\/maqola/i,
   /\/xabar/i,
+  /\/axborot/i,
+  /\/e['\u2019]?lon/i,  // e'lon, elon
+  /\/habar/i,
+  /\/matbuot/i,
+  /\/announcements?/i,
+  /\/updates?/i,
+  /\/events?/i,
+  /\/tadbirlar/i,
+  /\/voqealar/i,
 ];
 
 // URLs to exclude (not news)
@@ -119,11 +128,61 @@ export function findNewsListingUrls(html: string, baseUrl: string): string[] {
     /\/press\/?$/i,
     /\/media\/?$/i,
     /\/blog\/?$/i,
+    /\/posts?\/?$/i,
+    /\/articles?\/?$/i,
+    /\/maqolalar?\/?$/i,
+    /\/xabarlar?\/?$/i,
+    /\/axborot\/?$/i,
+    /\/e['\u2019]?lonlar?\/?$/i,
+    /\/habarlar?\/?$/i,
+    /\/matbuot\/?$/i,
+    /\/announcements?\/?$/i,
+    /\/updates?\/?$/i,
+    /\/events?\/?$/i,
+    /\/tadbirlar?\/?$/i,
   ];
   
   return links.filter(link => 
     newsListingPatterns.some(pattern => pattern.test(link))
   );
+}
+
+// Find news links by searching for keywords in link text
+export function findNewsLinksByText(html: string, baseUrl: string): string[] {
+  const newsTextPatterns = [
+    /yangiliklar/i,
+    /novosti/i,
+    /news/i,
+    /maqolalar/i,
+    /xabarlar/i,
+    /axborot/i,
+    /e['\u2019]?lonlar/i,
+    /habarlar/i,
+    /matbuot/i,
+    /posts/i,
+    /articles/i,
+  ];
+  
+  const links: string[] = [];
+  const linkRegex = /<a[^>]+href=["']([^"']+)["'][^>]*>([^<]*)<\/a>/gi;
+  let match;
+  
+  while ((match = linkRegex.exec(html)) !== null) {
+    const href = match[1];
+    const text = match[2].toLowerCase();
+    
+    if (newsTextPatterns.some(pattern => pattern.test(text))) {
+      try {
+        if (href.startsWith('#') || href.startsWith('javascript:')) continue;
+        const absoluteUrl = new URL(href, baseUrl).href;
+        links.push(absoluteUrl);
+      } catch {
+        // Invalid URL
+      }
+    }
+  }
+  
+  return [...new Set(links)];
 }
 
 // Extract news post links from a listing page
