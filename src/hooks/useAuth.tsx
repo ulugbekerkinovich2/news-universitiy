@@ -28,14 +28,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Check admin status
-          const { data } = await supabase.rpc('is_admin');
-          setIsAdmin(data === true);
+          // Check admin status - use setTimeout to avoid race condition
+          setTimeout(async () => {
+            try {
+              const { data } = await supabase.rpc('is_admin');
+              setIsAdmin(data === true);
+            } catch {
+              setIsAdmin(false);
+            }
+            setIsLoading(false);
+          }, 0);
         } else {
           setIsAdmin(false);
+          setIsLoading(false);
         }
-        
-        setIsLoading(false);
       }
     );
 
@@ -45,10 +51,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
       
       if (session?.user) {
-        const { data } = await supabase.rpc('is_admin');
-        setIsAdmin(data === true);
+        try {
+          const { data } = await supabase.rpc('is_admin');
+          setIsAdmin(data === true);
+        } catch {
+          setIsAdmin(false);
+        }
       }
       
+      setIsLoading(false);
+    }).catch(() => {
+      // If getSession fails, still mark as not loading
       setIsLoading(false);
     });
 
