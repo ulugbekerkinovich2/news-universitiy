@@ -162,6 +162,25 @@ export async function getNewsPost(id: string): Promise<NewsPost | null> {
   return data as unknown as NewsPost;
 }
 
+// Delete a news post and its media assets
+export async function deleteNewsPost(id: string): Promise<void> {
+  // First delete related media assets
+  const { error: mediaError } = await supabase
+    .from('media_assets')
+    .delete()
+    .eq('post_id', id);
+
+  if (mediaError) throw mediaError;
+
+  // Then delete the post
+  const { error } = await supabase
+    .from('news_posts')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw error;
+}
+
 // Media Assets API
 export async function getMediaAssets(postId: string): Promise<MediaAsset[]> {
   const { data, error } = await supabase
