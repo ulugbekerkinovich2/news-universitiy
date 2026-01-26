@@ -111,7 +111,8 @@ export async function getNewsPosts(params?: {
     .from('news_posts')
     .select(`
       *,
-      university:universities(*)
+      university:universities(*),
+      cover_image:media_assets!fk_cover_image(id, original_url, stored_url)
     `, { count: 'exact' });
 
   if (university_id) {
