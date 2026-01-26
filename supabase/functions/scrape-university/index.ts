@@ -2,6 +2,8 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.1';
 import { corsHeaders } from '../_shared/cors.ts';
 import { scrapeUniversity } from '../_shared/scraper.ts';
+import { validateScrapeUniversityInput } from '../_shared/validation.ts';
+import { isValidExternalUrl } from '../_shared/url-validator.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
@@ -62,14 +64,26 @@ serve(async (req) => {
       }
     }
 
-    const { jobId, universityId } = await req.json();
-
-    if (!jobId || !universityId) {
+    // Parse and validate input
+    let rawInput: unknown;
+    try {
+      rawInput = await req.json();
+    } catch {
       return new Response(
-        JSON.stringify({ error: 'Missing jobId or universityId' }),
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const validation = validateScrapeUniversityInput(rawInput);
+    if (!validation.success) {
+      return new Response(
+        JSON.stringify({ error: validation.error }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { jobId, universityId } = validation.data!;
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -99,6 +113,24 @@ serve(async (req) => {
       );
     }
 
+    // SSRF Protection: Validate the website URL before fetching
+    if (!isValidExternalUrl(university.website)) {
+      console.error(`SSRF attempt blocked for university ${universityId}: ${university.website}`);
+      
+      await supabase
+        .from('universities')
+        .update({ 
+          scrape_status: 'FAILED',
+          last_error_message: 'Invalid or unsafe website URL'
+        })
+        .eq('id', universityId);
+
+      return new Response(
+        JSON.stringify({ error: 'Invalid or unsafe website URL' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Start scraping
     const result = await scrapeUniversity(jobId, universityId, university.website);
 
@@ -110,7 +142,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ error: 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

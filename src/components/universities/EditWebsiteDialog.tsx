@@ -14,6 +14,57 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle, Globe, CheckCircle2 } from "lucide-react";
 
+/**
+ * SSRF Protection - Client-side URL validation
+ * Matches the server-side validation in url-validator.ts
+ */
+function isValidExternalUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    
+    // Only allow HTTP/HTTPS
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return false;
+    }
+    
+    const hostname = parsed.hostname.toLowerCase();
+    
+    // Block localhost variants
+    if (hostname === 'localhost' || 
+        hostname === '127.0.0.1' || 
+        hostname === '0.0.0.0' ||
+        hostname === '::1' ||
+        hostname.endsWith('.localhost')) {
+      return false;
+    }
+    
+    // Block cloud metadata endpoints
+    if (hostname === '169.254.169.254' || 
+        hostname === 'metadata.google.internal' ||
+        hostname === 'metadata.goog' ||
+        hostname.endsWith('.internal')) {
+      return false;
+    }
+    
+    // Check for private IPv4 ranges
+    const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (ipv4Match) {
+      const [, a, b] = ipv4Match.map(Number);
+      
+      // Block private/reserved ranges
+      if (a === 0 || a === 10 || a === 127) return false;
+      if (a === 169 && b === 254) return false;
+      if (a === 172 && b >= 16 && b <= 31) return false;
+      if (a === 192 && b === 168) return false;
+      if (a >= 224) return false;
+    }
+    
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 interface EditWebsiteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -66,6 +117,17 @@ export function EditWebsiteDialog({
       const url = website.trim() 
         ? (website.startsWith("http") ? website : `https://${website}`)
         : null;
+      
+      // Client-side SSRF protection
+      if (url && !isValidExternalUrl(url)) {
+        toast({
+          title: "Invalid URL",
+          description: "URL must be a public HTTP/HTTPS address. Internal/private addresses are not allowed.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
       
       const { error } = await supabase
         .from("universities")

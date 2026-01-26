@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.1';
 import { corsHeaders } from '../_shared/cors.ts';
+import { validateStartJobInput } from '../_shared/validation.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
@@ -55,14 +56,26 @@ serve(async (req) => {
       );
     }
 
-    const { scope, universityId } = await req.json();
-
-    if (!scope || (scope === 'SINGLE_UNIVERSITY' && !universityId)) {
+    // Parse and validate input
+    let rawInput: unknown;
+    try {
+      rawInput = await req.json();
+    } catch {
       return new Response(
-        JSON.stringify({ error: 'Invalid parameters' }),
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const validation = validateStartJobInput(rawInput);
+    if (!validation.success) {
+      return new Response(
+        JSON.stringify({ error: validation.error }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { scope, universityId } = validation.data!;
 
     // Create the job
     const { data: job, error: jobError } = await supabaseService
@@ -92,12 +105,20 @@ serve(async (req) => {
       
       universities = data || [];
     } else {
-      const { data } = await supabaseService
+      // Verify the university exists
+      const { data, error } = await supabaseService
         .from('universities')
         .select('id, website')
         .eq('id', universityId);
       
-      universities = data || [];
+      if (error || !data || data.length === 0) {
+        return new Response(
+          JSON.stringify({ error: 'University not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      universities = data;
     }
 
     // Update job totals
@@ -218,7 +239,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ error: 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
