@@ -1,1 +1,7 @@
 project_id = "jattrpcfphsmsvmvthfb"
+
+[functions.scrape-university]
+verify_jwt = false
+
+[functions.start-scrape-job]
+verify_jwt = false

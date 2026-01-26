@@ -218,18 +218,23 @@ export async function getActiveJobs(): Promise<ScrapeJob[]> {
 }
 
 export async function createScrapeJob(scope: 'ALL_UNIVERSITIES' | 'SINGLE_UNIVERSITY', universityId?: string): Promise<ScrapeJob> {
-  const { data, error } = await supabase
+  // Call the edge function to start the scrape job
+  const { data, error } = await supabase.functions.invoke('start-scrape-job', {
+    body: { scope, universityId },
+  });
+
+  if (error) {
+    throw new Error(error.message || 'Failed to start scrape job');
+  }
+
+  // Return the created job
+  const { data: job } = await supabase
     .from('scrape_jobs')
-    .insert({
-      scope,
-      university_id: universityId || null,
-      status: 'QUEUED',
-    })
-    .select()
+    .select('*')
+    .eq('id', data.jobId)
     .single();
 
-  if (error) throw error;
-  return data as ScrapeJob;
+  return job as ScrapeJob;
 }
 
 export async function cancelScrapeJob(jobId: string): Promise<void> {
