@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { JobProgress } from "@/components/dashboard/JobProgress";
@@ -6,6 +6,8 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { 
   getStats, 
   getActiveJobs, 
@@ -17,6 +19,7 @@ import {
 import type { ScrapeJob, ScrapeJobEvent } from "@/types/database";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { 
   GraduationCap, 
   Newspaper, 
@@ -24,7 +27,9 @@ import {
   XCircle,
   RefreshCw,
   Activity,
-  History
+  History,
+  Volume2,
+  VolumeX
 } from "lucide-react";
 
 export default function Dashboard() {
@@ -33,7 +38,18 @@ export default function Dashboard() {
   const [recentJobs, setRecentJobs] = useState<ScrapeJob[]>([]);
   const [jobEvents, setJobEvents] = useState<Record<string, ScrapeJobEvent[]>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    const saved = localStorage.getItem("scrape-sound-enabled");
+    return saved !== null ? saved === "true" : true;
+  });
+  const previousJobsRef = useRef<Record<string, string>>({});
   const { toast } = useToast();
+  const { play } = useNotificationSound();
+
+  // Save sound preference
+  useEffect(() => {
+    localStorage.setItem("scrape-sound-enabled", String(soundEnabled));
+  }, [soundEnabled]);
 
   useEffect(() => {
     loadData();
@@ -44,7 +60,31 @@ export default function Dashboard() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'scrape_jobs' },
-        () => {
+        (payload) => {
+          const job = payload.new as ScrapeJob;
+          const previousStatus = previousJobsRef.current[job.id];
+          
+          // Check if job just completed or failed
+          if (previousStatus && previousStatus !== job.status) {
+            if (job.status === 'DONE' && soundEnabled) {
+              play('success');
+              toast({
+                title: "✅ Scraping tugadi!",
+                description: `Job muvaffaqiyatli yakunlandi`,
+              });
+            } else if (job.status === 'FAILED' && soundEnabled) {
+              play('error');
+              toast({
+                title: "❌ Scraping xatosi",
+                description: "Job xato bilan tugadi",
+                variant: "destructive",
+              });
+            }
+          }
+          
+          // Update previous status
+          previousJobsRef.current[job.id] = job.status;
+          
           loadActiveJobs();
           loadRecentJobs();
         }
@@ -70,7 +110,7 @@ export default function Dashboard() {
       supabase.removeChannel(jobsChannel);
       supabase.removeChannel(eventsChannel);
     };
-  }, []);
+  }, [soundEnabled, play, toast]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -92,8 +132,9 @@ export default function Dashboard() {
       const jobs = await getActiveJobs();
       setActiveJobs(jobs);
 
-      // Load events for active jobs
+      // Track job statuses and load events
       for (const job of jobs) {
+        previousJobsRef.current[job.id] = job.status;
         const events = await getScrapeJobEvents(job.id);
         setJobEvents(prev => ({ ...prev, [job.id]: events }));
       }
@@ -155,10 +196,28 @@ export default function Dashboard() {
             </p>
           </div>
 
-          <Button onClick={handleScrapeAll}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Scrape All
-          </Button>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              {soundEnabled ? (
+                <Volume2 className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <VolumeX className="h-4 w-4 text-muted-foreground" />
+              )}
+              <Label htmlFor="sound-toggle" className="text-sm text-muted-foreground">
+                Ovoz
+              </Label>
+              <Switch
+                id="sound-toggle"
+                checked={soundEnabled}
+                onCheckedChange={setSoundEnabled}
+              />
+            </div>
+
+            <Button onClick={handleScrapeAll}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Scrape All
+            </Button>
+          </div>
         </div>
 
         {/* Stats */}
