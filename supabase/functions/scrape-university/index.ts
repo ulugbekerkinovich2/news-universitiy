@@ -4,6 +4,7 @@ import { corsHeaders } from '../_shared/cors.ts';
 import { scrapeUniversity } from '../_shared/scraper.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 serve(async (req) => {
@@ -13,6 +14,54 @@ serve(async (req) => {
   }
 
   try {
+    // Check if this is an internal call from start-scrape-job
+    const isInternalCall = req.headers.get('X-Internal-Call') === 'true';
+    const authHeader = req.headers.get('Authorization');
+
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - No token provided' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+
+    // If internal call with service role key, skip user verification
+    if (!isInternalCall) {
+      // Verify user token
+      const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        global: { headers: { Authorization: authHeader } }
+      });
+
+      const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getUser(token);
+      if (claimsError || !claimsData.user) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized - Invalid token' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const userId = claimsData.user.id;
+
+      // Check if user is admin
+      const supabaseService = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      
+      const { data: roleData, error: roleError } = await supabaseService
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .eq('role', 'admin')
+        .maybeSingle();
+
+      if (roleError || !roleData) {
+        return new Response(
+          JSON.stringify({ error: 'Forbidden - Admin access required' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     const { jobId, universityId } = await req.json();
 
     if (!jobId || !universityId) {

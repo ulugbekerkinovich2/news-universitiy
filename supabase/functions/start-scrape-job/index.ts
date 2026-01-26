@@ -3,6 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.91.1';
 import { corsHeaders } from '../_shared/cors.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 serve(async (req) => {
@@ -12,6 +13,48 @@ serve(async (req) => {
   }
 
   try {
+    // Check authorization
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - No token provided' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Verify user token
+    const token = authHeader.replace('Bearer ', '');
+    const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getUser(token);
+    if (claimsError || !claimsData.user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Invalid token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const userId = claimsData.user.id;
+
+    // Check if user is admin using service role
+    const supabaseService = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    
+    const { data: roleData, error: roleError } = await supabaseService
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .eq('role', 'admin')
+      .maybeSingle();
+
+    if (roleError || !roleData) {
+      return new Response(
+        JSON.stringify({ error: 'Forbidden - Admin access required' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { scope, universityId } = await req.json();
 
     if (!scope || (scope === 'SINGLE_UNIVERSITY' && !universityId)) {
@@ -21,10 +64,8 @@ serve(async (req) => {
       );
     }
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
     // Create the job
-    const { data: job, error: jobError } = await supabase
+    const { data: job, error: jobError } = await supabaseService
       .from('scrape_jobs')
       .insert({
         scope,
@@ -43,7 +84,7 @@ serve(async (req) => {
     let universities: Array<{ id: string; website: string | null }> = [];
 
     if (scope === 'ALL_UNIVERSITIES') {
-      const { data } = await supabase
+      const { data } = await supabaseService
         .from('universities')
         .select('id, website')
         .not('website', 'is', null)
@@ -51,7 +92,7 @@ serve(async (req) => {
       
       universities = data || [];
     } else {
-      const { data } = await supabase
+      const { data } = await supabaseService
         .from('universities')
         .select('id, website')
         .eq('id', universityId);
@@ -60,7 +101,7 @@ serve(async (req) => {
     }
 
     // Update job totals
-    await supabase
+    await supabaseService
       .from('scrape_jobs')
       .update({
         totals_json: {
@@ -76,10 +117,7 @@ serve(async (req) => {
       })
       .eq('id', job.id);
 
-    // Process universities in background
-    // Note: Edge functions have a timeout, so for large batches we process sequentially
-    // In production, you'd want to use a queue system
-    
+    // Process universities
     const results = {
       completed: 0,
       failed: 0,
@@ -90,7 +128,7 @@ serve(async (req) => {
 
     for (const university of universities) {
       if (!university.website) {
-        await supabase
+        await supabaseService
           .from('universities')
           .update({ scrape_status: 'NO_SOURCE' })
           .eq('id', university.id);
@@ -100,7 +138,7 @@ serve(async (req) => {
       }
 
       try {
-        // Call the scrape-university function
+        // Call the scrape-university function with service role key
         const scrapeResponse = await fetch(
           `${SUPABASE_URL}/functions/v1/scrape-university`,
           {
@@ -108,6 +146,7 @@ serve(async (req) => {
             headers: {
               'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
               'Content-Type': 'application/json',
+              'X-Internal-Call': 'true',
             },
             body: JSON.stringify({
               jobId: job.id,
@@ -130,7 +169,7 @@ serve(async (req) => {
         }
 
         // Update job progress
-        await supabase
+        await supabaseService
           .from('scrape_jobs')
           .update({
             totals_json: {
@@ -151,7 +190,7 @@ serve(async (req) => {
     }
 
     // Mark job as complete
-    await supabase
+    await supabaseService
       .from('scrape_jobs')
       .update({
         status: results.failed === universities.length ? 'FAILED' : 'DONE',

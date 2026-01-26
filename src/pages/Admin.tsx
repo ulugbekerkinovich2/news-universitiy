@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { JsonUploader } from "@/components/admin/JsonUploader";
+import { UserManagement } from "@/components/admin/UserManagement";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getStats, getUniversities } from "@/lib/api";
-import { GraduationCap, Newspaper, Database, Settings } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getStats } from "@/lib/api";
+import { GraduationCap, Newspaper, Database, Settings, Users, Upload } from "lucide-react";
 
 export default function Admin() {
   const [stats, setStats] = useState<{ totalUniversities: number; totalPosts: number; byStatus: Record<string, number> } | null>(null);
@@ -31,7 +33,7 @@ export default function Admin() {
             Admin Panel
           </h1>
           <p className="mt-1 text-muted-foreground">
-            Manage universities and configure the aggregator
+            Foydalanuvchilar va universitetlarni boshqarish
           </p>
         </div>
 
@@ -39,53 +41,74 @@ export default function Admin() {
         {stats && (
           <div className="grid gap-4 sm:grid-cols-3">
             <StatsCard
-              title="Universities"
+              title="Universitetlar"
               value={stats.totalUniversities}
               icon={GraduationCap}
             />
             <StatsCard
-              title="News Posts"
+              title="Yangiliklar"
               value={stats.totalPosts}
               icon={Newspaper}
             />
             <StatsCard
-              title="Database Status"
-              value="Connected"
+              title="Ma'lumotlar bazasi"
+              value="Ulangan"
               icon={Database}
             />
           </div>
         )}
 
-        {/* Import Section */}
-        <div className="grid gap-6 lg:grid-cols-2">
-          <JsonUploader onImportComplete={loadStats} />
+        {/* Tabs for different admin sections */}
+        <Tabs defaultValue="users" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="users" className="gap-2">
+              <Users className="h-4 w-4" />
+              <span className="hidden sm:inline">Foydalanuvchilar</span>
+            </TabsTrigger>
+            <TabsTrigger value="import" className="gap-2">
+              <Upload className="h-4 w-4" />
+              <span className="hidden sm:inline">Import</span>
+            </TabsTrigger>
+            <TabsTrigger value="status" className="gap-2">
+              <Database className="h-4 w-4" />
+              <span className="hidden sm:inline">Status</span>
+            </TabsTrigger>
+          </TabsList>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Status Overview</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {stats && (
-                <div className="space-y-3">
-                  {Object.entries(stats.byStatus).map(([status, count]) => (
-                    <div key={status} className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground capitalize">
-                        {status.replace('_', ' ').toLowerCase()}
-                      </span>
-                      <span className="font-mono font-medium">{count}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+          <TabsContent value="users">
+            <UserManagement />
+          </TabsContent>
 
-              {(!stats || Object.keys(stats.byStatus).length === 0) && (
-                <p className="text-sm text-muted-foreground">
-                  No universities imported yet. Use the uploader to import your JSON file.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+          <TabsContent value="import">
+            <JsonUploader onImportComplete={loadStats} />
+          </TabsContent>
+
+          <TabsContent value="status">
+            <Card>
+              <CardHeader>
+                <CardTitle>Status Overview</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {stats && Object.keys(stats.byStatus).length > 0 ? (
+                  <div className="space-y-3">
+                    {Object.entries(stats.byStatus).map(([status, count]) => (
+                      <div key={status} className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground capitalize">
+                          {status.replace('_', ' ').toLowerCase()}
+                        </span>
+                        <span className="font-mono font-medium">{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Hali universitetlar import qilinmagan.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </Layout>
   );
