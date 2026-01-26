@@ -19,7 +19,7 @@ export default function Login() {
   const location = useLocation();
   const { toast } = useToast();
 
-  const from = location.state?.from?.pathname || "/";
+  const from = location.state?.from?.pathname || "/universities";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
