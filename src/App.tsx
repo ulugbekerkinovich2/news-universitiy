@@ -35,13 +35,20 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            {/* Default route - Login page */}
-            <Route path="/" element={<Login />} />
-            <Route path="/login" element={<Login />} />
-            
             {/* Public routes - o'qish uchun */}
             <Route path="/news" element={<NewsPage />} />
             <Route path="/news/:id" element={<NewsDetail />} />
+            <Route path="/login" element={<Login />} />
+            
+            {/* Default route - redirect to universities or login */}
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <Index />
+                </ProtectedRoute>
+              }
+            />
             
             {/* Protected routes - admin uchun */}
             <Route
