@@ -210,6 +210,7 @@ export default function Index() {
                   university={uni}
                   onScrape={handleScrape}
                   isScraping={scrapingId === uni.id}
+                  onUpdate={loadUniversities}
                 />
               ))}
             </div>
