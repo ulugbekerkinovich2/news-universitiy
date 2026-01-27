@@ -14,6 +14,95 @@ export type Database = {
   }
   public: {
     Tables: {
+      api_keys: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          is_active: boolean | null
+          key_hash: string
+          key_prefix: string
+          last_used_at: string | null
+          name: string
+          rate_limit_per_day: number | null
+          rate_limit_per_minute: number | null
+          request_count: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          key_hash: string
+          key_prefix: string
+          last_used_at?: string | null
+          name: string
+          rate_limit_per_day?: number | null
+          rate_limit_per_minute?: number | null
+          request_count?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          key_hash?: string
+          key_prefix?: string
+          last_used_at?: string | null
+          name?: string
+          rate_limit_per_day?: number | null
+          rate_limit_per_minute?: number | null
+          request_count?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      api_request_logs: {
+        Row: {
+          api_key_id: string
+          created_at: string | null
+          endpoint: string
+          id: string
+          ip_address: string | null
+          response_status: number | null
+          response_time_ms: number | null
+          user_agent: string | null
+        }
+        Insert: {
+          api_key_id: string
+          created_at?: string | null
+          endpoint: string
+          id?: string
+          ip_address?: string | null
+          response_status?: number | null
+          response_time_ms?: number | null
+          user_agent?: string | null
+        }
+        Update: {
+          api_key_id?: string
+          created_at?: string | null
+          endpoint?: string
+          id?: string
+          ip_address?: string | null
+          response_status?: number | null
+          response_time_ms?: number | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_request_logs_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       media_assets: {
         Row: {
           created_at: string
@@ -316,6 +405,17 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: never; Returns: boolean }
+      validate_api_key: {
+        Args: { p_key_hash: string }
+        Returns: {
+          is_valid: boolean
+          key_id: string
+          rate_limit_day: number
+          rate_limit_minute: number
+          requests_last_day: number
+          requests_last_minute: number
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "user"

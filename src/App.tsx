@@ -13,6 +13,7 @@ import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
 import Export from "./pages/Export";
 import Login from "./pages/Login";
+import ApiDocs from "./pages/ApiDocs";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -91,6 +92,8 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            {/* Public API docs */}
+            <Route path="/api-docs" element={<ApiDocs />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

@@ -9,12 +9,14 @@ import {
   BarChart3,
   Download,
   LogOut,
-  User
+  User,
+  Book
 } from "lucide-react";
 
 const navItems = [
   { href: "/", label: "Universities", icon: GraduationCap, requireAdmin: true },
   { href: "/news", label: "News", icon: Newspaper, requireAdmin: false },
+  { href: "/api-docs", label: "API", icon: Book, requireAdmin: false },
   { href: "/dashboard", label: "Dashboard", icon: BarChart3, requireAdmin: true },
   { href: "/admin", label: "Admin", icon: Settings, requireAdmin: true },
   { href: "/export", label: "Export", icon: Download, requireAdmin: true },
