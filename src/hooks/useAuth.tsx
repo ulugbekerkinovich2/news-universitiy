@@ -20,7 +20,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const isCheckingAdmin = useRef(false);
-  const hasInitialized = useRef(false);
 
   // Memoized admin check with debounce protection
   const checkAdminStatus = useCallback(async (userId: string): Promise<boolean> => {
@@ -43,10 +42,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [isAdmin]);
 
   useEffect(() => {
-    // Prevent double initialization in strict mode
-    if (hasInitialized.current) return;
-    hasInitialized.current = true;
-
     let isMounted = true;
 
     // Set up auth state listener FIRST
