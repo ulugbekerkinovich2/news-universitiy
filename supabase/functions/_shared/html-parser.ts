@@ -155,6 +155,10 @@ export function findNewsLinksByText(html: string, baseUrl: string): string[] {
     /yangiliklar/i,
     /novosti/i,
     /news/i,
+    /latest\s*news/i,  // "Latest News", "LATEST NEWS"
+    /lates[t]?\s*news/i,  // Common typo: "LATES NEWS"
+    /so['']?nggi\s*yangiliklar/i,  // So'nggi yangiliklar
+    /последние\s*новости/i,  // Последние новости (Russian)
     /maqolalar/i,
     /xabarlar/i,
     /axborot/i,
@@ -163,6 +167,10 @@ export function findNewsLinksByText(html: string, baseUrl: string): string[] {
     /matbuot/i,
     /posts/i,
     /articles/i,
+    /latest/i,  // Just "Latest"
+    /recent/i,  // "Recent"
+    /updates/i,  // "Updates"
+    /announcements/i,  // "Announcements"
   ];
   
   const links: string[] = [];
