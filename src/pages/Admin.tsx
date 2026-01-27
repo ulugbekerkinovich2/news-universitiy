@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { JsonUploader } from "@/components/admin/JsonUploader";
 import { UserManagement } from "@/components/admin/UserManagement";
+import { ApiKeyManagement } from "@/components/admin/ApiKeyManagement";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getStats } from "@/lib/api";
-import { GraduationCap, Newspaper, Database, Settings, Users, Upload } from "lucide-react";
+import { GraduationCap, Newspaper, Database, Settings, Users, Upload, Key } from "lucide-react";
 
 export default function Admin() {
   const [stats, setStats] = useState<{ totalUniversities: number; totalPosts: number; byStatus: Record<string, number> } | null>(null);
@@ -65,6 +66,10 @@ export default function Admin() {
               <Users className="h-4 w-4" />
               <span className="hidden sm:inline">Foydalanuvchilar</span>
             </TabsTrigger>
+            <TabsTrigger value="api-keys" className="gap-2">
+              <Key className="h-4 w-4" />
+              <span className="hidden sm:inline">API</span>
+            </TabsTrigger>
             <TabsTrigger value="import" className="gap-2">
               <Upload className="h-4 w-4" />
               <span className="hidden sm:inline">Import</span>
@@ -77,6 +82,10 @@ export default function Admin() {
 
           <TabsContent value="users">
             <UserManagement />
+          </TabsContent>
+
+          <TabsContent value="api-keys">
+            <ApiKeyManagement />
           </TabsContent>
 
           <TabsContent value="import">
