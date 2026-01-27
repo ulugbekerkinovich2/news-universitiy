@@ -395,3 +395,120 @@ export async function getRegions(): Promise<string[]> {
   const regions = [...new Set((data as { region_id: string }[]).map(d => d.region_id))];
   return regions.filter(Boolean).sort();
 }
+
+// Get top universities by news count
+export async function getTopUniversitiesByNews(limit = 10): Promise<Array<{
+  university_id: string;
+  name: string;
+  count: number;
+}>> {
+  const { data, error } = await supabase
+    .from('news_posts')
+    .select('university_id, university:universities(name_uz)');
+
+  if (error) throw error;
+
+  // Count posts per university
+  const counts: Record<string, { name: string; count: number }> = {};
+  (data || []).forEach((post: { university_id: string; university: { name_uz: string } | null }) => {
+    if (!counts[post.university_id]) {
+      counts[post.university_id] = {
+        name: post.university?.name_uz || 'Unknown',
+        count: 0,
+      };
+    }
+    counts[post.university_id].count++;
+  });
+
+  // Sort and return top universities
+  return Object.entries(counts)
+    .map(([id, data]) => ({ university_id: id, name: data.name, count: data.count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
+}
+
+// Get scraping success rates by region
+export async function getScrapingStatsByRegion(): Promise<Array<{
+  region_id: string;
+  total: number;
+  done: number;
+  failed: number;
+  no_news: number;
+  no_source: number;
+  success_rate: number;
+}>> {
+  const { data, error } = await supabase
+    .from('universities')
+    .select('region_id, scrape_status');
+
+  if (error) throw error;
+
+  // Group by region
+  const regionStats: Record<string, {
+    total: number;
+    done: number;
+    failed: number;
+    no_news: number;
+    no_source: number;
+  }> = {};
+
+  (data || []).forEach((uni: { region_id: string | null; scrape_status: string }) => {
+    const regionId = uni.region_id || 'unknown';
+    if (!regionStats[regionId]) {
+      regionStats[regionId] = { total: 0, done: 0, failed: 0, no_news: 0, no_source: 0 };
+    }
+    regionStats[regionId].total++;
+    
+    switch (uni.scrape_status) {
+      case 'DONE':
+        regionStats[regionId].done++;
+        break;
+      case 'FAILED':
+        regionStats[regionId].failed++;
+        break;
+      case 'NO_NEWS':
+        regionStats[regionId].no_news++;
+        break;
+      case 'NO_SOURCE':
+        regionStats[regionId].no_source++;
+        break;
+    }
+  });
+
+  return Object.entries(regionStats)
+    .map(([region_id, stats]) => ({
+      region_id,
+      ...stats,
+      success_rate: stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0,
+    }))
+    .sort((a, b) => b.total - a.total);
+}
+
+// Get scraping status distribution
+export async function getScrapingStatusDistribution(): Promise<Array<{
+  status: string;
+  count: number;
+  percentage: number;
+}>> {
+  const { data, error } = await supabase
+    .from('universities')
+    .select('scrape_status');
+
+  if (error) throw error;
+
+  const statusCounts: Record<string, number> = {};
+  let total = 0;
+
+  (data || []).forEach((uni: { scrape_status: string }) => {
+    statusCounts[uni.scrape_status] = (statusCounts[uni.scrape_status] || 0) + 1;
+    total++;
+  });
+
+  return Object.entries(statusCounts)
+    .map(([status, count]) => ({
+      status,
+      count,
+      percentage: total > 0 ? Math.round((count / total) * 100) : 0,
+    }))
+    .sort((a, b) => b.count - a.count);
+}

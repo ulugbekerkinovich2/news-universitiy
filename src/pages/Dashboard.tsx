@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { JobProgress } from "@/components/dashboard/JobProgress";
+import { ScrapingStatsCharts } from "@/components/dashboard/ScrapingStatsCharts";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,7 +30,8 @@ import {
   Activity,
   History,
   Volume2,
-  VolumeX
+  VolumeX,
+  BarChart3
 } from "lucide-react";
 
 export default function Dashboard() {
@@ -336,6 +338,15 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+
+        {/* Scraping Statistics Charts */}
+        <div className="space-y-4">
+          <h2 className="font-heading text-xl font-semibold flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-primary" />
+            Scraping Statistikasi
+          </h2>
+          <ScrapingStatsCharts />
+        </div>
       </div>
     </Layout>
   );
