@@ -335,6 +335,7 @@ export type Database = {
           id: string
           last_error_message: string | null
           last_scraped_at: string | null
+          logo_url: string | null
           name_en: string | null
           name_ru: string | null
           name_uz: string
@@ -348,6 +349,7 @@ export type Database = {
           id: string
           last_error_message?: string | null
           last_scraped_at?: string | null
+          logo_url?: string | null
           name_en?: string | null
           name_ru?: string | null
           name_uz: string
@@ -361,6 +363,7 @@ export type Database = {
           id?: string
           last_error_message?: string | null
           last_scraped_at?: string | null
+          logo_url?: string | null
           name_en?: string | null
           name_ru?: string | null
           name_uz?: string
