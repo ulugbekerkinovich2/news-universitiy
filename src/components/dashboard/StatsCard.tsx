@@ -1,4 +1,4 @@
-import { forwardRef, memo } from "react";
+import { memo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
@@ -12,16 +12,16 @@ interface StatsCardProps {
   className?: string;
 }
 
-export const StatsCard = memo(forwardRef<HTMLDivElement, StatsCardProps>(function StatsCard({ 
+export const StatsCard = memo(function StatsCard({ 
   title, 
   value, 
   icon: Icon, 
   description,
   trend,
   className 
-}, ref) {
+}: StatsCardProps) {
   return (
-    <Card ref={ref} className={cn("card-hover", className)}>
+    <Card className={cn("card-hover", className)}>
       <CardContent className="p-5">
         <div className="flex items-start justify-between">
           <div>
@@ -40,4 +40,4 @@ export const StatsCard = memo(forwardRef<HTMLDivElement, StatsCardProps>(functio
       </CardContent>
     </Card>
   );
-}));
+});
