@@ -149,6 +149,9 @@ serve(async (req) => {
       videosSaved: 0,
     };
 
+    // Track universities we've started processing
+    const processingUniversityIds: string[] = [];
+
     for (const university of universities) {
       // Check if job was cancelled
       const { data: currentJob } = await supabaseService
@@ -159,6 +162,16 @@ serve(async (req) => {
       
       if (currentJob?.status === 'CANCELLED') {
         console.log(`Job ${job.id} was cancelled, stopping...`);
+        
+        // Reset any universities that are still IN_PROGRESS back to IDLE
+        await supabaseService
+          .from('universities')
+          .update({ 
+            scrape_status: 'IDLE',
+            last_error_message: 'Job was cancelled'
+          })
+          .eq('scrape_status', 'IN_PROGRESS');
+        
         break;
       }
 

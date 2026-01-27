@@ -323,6 +323,41 @@ export async function cancelScrapeJob(jobId: string): Promise<void> {
     .eq('id', jobId);
 
   if (error) throw error;
+
+  // Reset any universities stuck in IN_PROGRESS back to IDLE
+  await resetStuckUniversities();
+}
+
+// Reset universities that are stuck in IN_PROGRESS but have no active jobs
+export async function resetStuckUniversities(): Promise<{ updated: number }> {
+  // First check if there are any running jobs
+  const { data: activeJobs } = await supabase
+    .from('scrape_jobs')
+    .select('id')
+    .in('status', ['RUNNING', 'QUEUED'])
+    .limit(1);
+
+  // If there are active jobs, don't reset anything
+  if (activeJobs && activeJobs.length > 0) {
+    return { updated: 0 };
+  }
+
+  // Reset all IN_PROGRESS universities to IDLE since there are no active jobs
+  const { data, error } = await supabase
+    .from('universities')
+    .update({ 
+      scrape_status: 'IDLE',
+      last_error_message: 'Job was cancelled or interrupted'
+    })
+    .eq('scrape_status', 'IN_PROGRESS')
+    .select('id');
+
+  if (error) {
+    console.error('Error resetting stuck universities:', error);
+    return { updated: 0 };
+  }
+
+  return { updated: data?.length || 0 };
 }
 
 export async function getScrapeJobEvents(jobId: string): Promise<ScrapeJobEvent[]> {
