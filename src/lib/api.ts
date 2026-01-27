@@ -95,6 +95,58 @@ export async function importUniversities(universities: UniversityImportData[]): 
   return { imported, errors };
 }
 
+// Update university logo from website favicon
+export async function updateUniversityLogoFromWebsite(universityId: string, websiteUrl: string): Promise<void> {
+  if (!websiteUrl) {
+    throw new Error('Website URL is required');
+  }
+
+  // Extract domain from URL
+  let domain: string;
+  try {
+    const url = new URL(websiteUrl);
+    domain = url.hostname;
+  } catch {
+    throw new Error('Invalid website URL');
+  }
+
+  // Use Google's favicon service for reliable favicon fetching
+  const logoUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+
+  const { error } = await supabase
+    .from('universities')
+    .update({ logo_url: logoUrl })
+    .eq('id', universityId);
+
+  if (error) throw error;
+}
+
+// Bulk update logos for all universities with websites
+export async function updateAllUniversityLogos(): Promise<{ updated: number; errors: string[] }> {
+  const { data: universities, error } = await supabase
+    .from('universities')
+    .select('id, website')
+    .not('website', 'is', null);
+
+  if (error) throw error;
+
+  const errors: string[] = [];
+  let updated = 0;
+
+  for (const uni of universities || []) {
+    if (uni.website) {
+      try {
+        await updateUniversityLogoFromWebsite(uni.id, uni.website);
+        updated++;
+      } catch (e) {
+        errors.push(`${uni.id}: ${e instanceof Error ? e.message : 'Unknown error'}`);
+      }
+    }
+  }
+
+  return { updated, errors };
+}
+
 // News Posts API
 export async function getNewsPosts(params?: {
   university_id?: string;
