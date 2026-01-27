@@ -6,8 +6,10 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { EditWebsiteDialog } from "./EditWebsiteDialog";
 import type { University } from "@/types/database";
-import { ExternalLink, Globe, RefreshCw, MapPin, Pencil, GraduationCap } from "lucide-react";
+import { ExternalLink, Globe, RefreshCw, MapPin, Pencil, GraduationCap, Image } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { updateUniversityLogoFromWebsite } from "@/lib/api";
+import { toast } from "sonner";
 
 interface UniversityCardProps {
   university: University;
@@ -23,10 +25,29 @@ export const UniversityCard = memo(function UniversityCard({
   onUpdate 
 }: UniversityCardProps) {
   const [editOpen, setEditOpen] = useState(false);
+  const [isFetchingLogo, setIsFetchingLogo] = useState(false);
   const displayName = university.name_en || university.name_uz;
   const hasSSLError = university.last_error_message?.includes("certificate") || 
                       university.last_error_message?.includes("SSL") ||
                       university.last_error_message?.includes("fetch");
+
+  const handleFetchLogo = async () => {
+    if (!university.website) {
+      toast.error("Website URL mavjud emas");
+      return;
+    }
+    
+    setIsFetchingLogo(true);
+    try {
+      await updateUniversityLogoFromWebsite(university.id, university.website);
+      toast.success("Logo muvaffaqiyatli yangilandi");
+      onUpdate?.();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Logo yangilashda xatolik");
+    } finally {
+      setIsFetchingLogo(false);
+    }
+  };
   
   return (
     <>
@@ -34,18 +55,30 @@ export const UniversityCard = memo(function UniversityCard({
         <CardContent className="p-5">
           <div className="flex items-start gap-4">
             {/* University Logo */}
-            <Avatar className="h-12 w-12 shrink-0 rounded-lg border">
-              {university.logo_url ? (
-                <AvatarImage 
-                  src={university.logo_url} 
-                  alt={`${displayName} logo`}
-                  className="object-contain p-1"
-                />
-              ) : null}
-              <AvatarFallback className="rounded-lg bg-muted">
-                <GraduationCap className="h-6 w-6 text-muted-foreground" />
-              </AvatarFallback>
-            </Avatar>
+            <div className="relative group">
+              <Avatar className="h-12 w-12 shrink-0 rounded-lg border">
+                {university.logo_url ? (
+                  <AvatarImage 
+                    src={university.logo_url} 
+                    alt={`${displayName} logo`}
+                    className="object-contain p-1"
+                  />
+                ) : null}
+                <AvatarFallback className="rounded-lg bg-muted">
+                  <GraduationCap className="h-6 w-6 text-muted-foreground" />
+                </AvatarFallback>
+              </Avatar>
+              {university.website && (
+                <button
+                  onClick={handleFetchLogo}
+                  disabled={isFetchingLogo}
+                  className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Logo yuklash"
+                >
+                  <Image className={`h-4 w-4 text-white ${isFetchingLogo ? 'animate-pulse' : ''}`} />
+                </button>
+              )}
+            </div>
 
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-4">
