@@ -4,13 +4,16 @@ import { JsonUploader } from "@/components/admin/JsonUploader";
 import { UserManagement } from "@/components/admin/UserManagement";
 import { ApiKeyManagement } from "@/components/admin/ApiKeyManagement";
 import { StatsCard } from "@/components/dashboard/StatsCard";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getStats } from "@/lib/api";
-import { GraduationCap, Newspaper, Database, Settings, Users, Upload, Key } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { getStats, updateAllUniversityLogos } from "@/lib/api";
+import { GraduationCap, Newspaper, Database, Settings, Users, Upload, Key, Image, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 export default function Admin() {
   const [stats, setStats] = useState<{ totalUniversities: number; totalPosts: number; byStatus: Record<string, number> } | null>(null);
+  const [isLoadingLogos, setIsLoadingLogos] = useState(false);
 
   useEffect(() => {
     loadStats();
@@ -22,6 +25,21 @@ export default function Admin() {
       setStats(data);
     } catch (error) {
       console.error("Failed to load stats:", error);
+    }
+  };
+
+  const handleBulkLoadLogos = async () => {
+    setIsLoadingLogos(true);
+    try {
+      const result = await updateAllUniversityLogos();
+      toast.success(`${result.updated} ta universitet logosi yangilandi`);
+      if (result.errors.length > 0) {
+        toast.warning(`${result.errors.length} ta xatolik yuz berdi`);
+      }
+    } catch (error) {
+      toast.error("Logolarni yuklashda xatolik yuz berdi");
+    } finally {
+      setIsLoadingLogos(false);
     }
   };
 
@@ -89,7 +107,44 @@ export default function Admin() {
           </TabsContent>
 
           <TabsContent value="import">
-            <JsonUploader onImportComplete={loadStats} />
+            <div className="space-y-4">
+              <JsonUploader onImportComplete={loadStats} />
+              
+              {/* Bulk Logo Loader */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Image className="h-5 w-5" />
+                    Logolarni yuklash
+                  </CardTitle>
+                  <CardDescription>
+                    Barcha universitetlar uchun websitlardan logolarni avtomatik yuklash
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button 
+                    onClick={handleBulkLoadLogos} 
+                    disabled={isLoadingLogos}
+                    className="w-full sm:w-auto"
+                  >
+                    {isLoadingLogos ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Yuklanmoqda...
+                      </>
+                    ) : (
+                      <>
+                        <Image className="mr-2 h-4 w-4" />
+                        Barcha logolarni yuklash
+                      </>
+                    )}
+                  </Button>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Bu jarayon bir necha daqiqa davom etishi mumkin
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="status">
