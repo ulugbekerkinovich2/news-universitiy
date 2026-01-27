@@ -3,9 +3,10 @@ import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { EditWebsiteDialog } from "./EditWebsiteDialog";
 import type { University } from "@/types/database";
-import { ExternalLink, Globe, RefreshCw, MapPin, Pencil } from "lucide-react";
+import { ExternalLink, Globe, RefreshCw, MapPin, Pencil, GraduationCap } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 interface UniversityCardProps {
@@ -31,22 +32,50 @@ export const UniversityCard = memo(function UniversityCard({
     <>
       <Card className="card-hover overflow-hidden">
         <CardContent className="p-5">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-4">
+            {/* University Logo */}
+            <Avatar className="h-12 w-12 shrink-0 rounded-lg border">
+              {university.logo_url ? (
+                <AvatarImage 
+                  src={university.logo_url} 
+                  alt={`${displayName} logo`}
+                  className="object-contain p-1"
+                />
+              ) : null}
+              <AvatarFallback className="rounded-lg bg-muted">
+                <GraduationCap className="h-6 w-6 text-muted-foreground" />
+              </AvatarFallback>
+            </Avatar>
+
             <div className="flex-1 min-w-0">
-              <Link 
-                to={`/universities/${university.id}`}
-                className="group"
-              >
-                <h3 className="font-heading text-lg font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-1">
-                  {displayName}
-                </h3>
-              </Link>
-              
-              {university.name_uz !== displayName && (
-                <p className="text-sm text-muted-foreground mt-0.5 line-clamp-1">
-                  {university.name_uz}
-                </p>
-              )}
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <Link 
+                    to={`/universities/${university.id}`}
+                    className="group"
+                  >
+                    <h3 className="font-heading text-lg font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-1">
+                      {displayName}
+                    </h3>
+                  </Link>
+                  
+                  {university.name_uz !== displayName && (
+                    <p className="text-sm text-muted-foreground mt-0.5 line-clamp-1">
+                      {university.name_uz}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  <StatusBadge status={university.scrape_status} size="sm" />
+                  
+                  {university.last_scraped_at && (
+                    <span className="text-[11px] text-muted-foreground">
+                      {formatDistanceToNow(new Date(university.last_scraped_at), { addSuffix: true })}
+                    </span>
+                  )}
+                </div>
+              </div>
 
               <div className="flex items-center gap-3 mt-3">
                 {university.region_id && (
@@ -88,16 +117,6 @@ export const UniversityCard = memo(function UniversityCard({
                   </button>
                 )}
               </div>
-            </div>
-
-            <div className="flex flex-col items-end gap-2">
-              <StatusBadge status={university.scrape_status} size="sm" />
-              
-              {university.last_scraped_at && (
-                <span className="text-[11px] text-muted-foreground">
-                  {formatDistanceToNow(new Date(university.last_scraped_at), { addSuffix: true })}
-                </span>
-              )}
             </div>
           </div>
 

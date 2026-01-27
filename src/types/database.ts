@@ -13,6 +13,7 @@ export interface University {
   name_en: string | null;
   name_ru: string | null;
   website: string | null;
+  logo_url: string | null;
   created_at: string;
   updated_at: string;
   scrape_status: ScrapeStatus;
