@@ -140,9 +140,29 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error:', errorMessage);
+    
+    // Try to save error to university if we have the universityId
+    try {
+      const body = await req.clone().json().catch(() => ({}));
+      if (body.universityId) {
+        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        await supabase
+          .from('universities')
+          .update({
+            scrape_status: 'FAILED',
+            last_error_message: errorMessage,
+            last_scraped_at: new Date().toISOString(),
+          })
+          .eq('id', body.universityId);
+      }
+    } catch {
+      // Ignore errors from error handling
+    }
+    
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: errorMessage, success: false }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
