@@ -153,35 +153,67 @@ export function findNewsListingUrls(html: string, baseUrl: string): string[] {
 export function findNewsLinksByText(html: string, baseUrl: string): string[] {
   const newsTextPatterns = [
     /yangiliklar/i,
+    /yangilik/i,  // singular form
     /novosti/i,
+    /новости/i,  // Russian Cyrillic
     /news/i,
-    /latest\s*news/i,  // "Latest News", "LATEST NEWS"
-    /lates[t]?\s*news/i,  // Common typo: "LATES NEWS"
-    /so['']?nggi\s*yangiliklar/i,  // So'nggi yangiliklar
-    /последние\s*новости/i,  // Последние новости (Russian)
+    /latest\s*news/i,
+    /lates[t]?\s*news/i,
+    /so['']?nggi\s*yangiliklar/i,
+    /последние\s*новости/i,
     /maqolalar/i,
+    /maqola/i,
     /xabarlar/i,
+    /xabar/i,
     /axborot/i,
     /e['\u2019]?lonlar/i,
+    /e['\u2019]?lon/i,
     /habarlar/i,
+    /habar/i,
     /matbuot/i,
     /posts/i,
     /articles/i,
-    /latest/i,  // Just "Latest"
-    /recent/i,  // "Recent"
-    /updates/i,  // "Updates"
-    /announcements/i,  // "Announcements"
+    /latest/i,
+    /recent/i,
+    /updates/i,
+    /announcements/i,
+    /all\s*news/i,
+    /more\s*news/i,
+    /barcha\s*yangiliklar/i,
+    /barchasi/i,
+    /ko['']proq/i,
   ];
   
   const links: string[] = [];
-  const linkRegex = /<a[^>]+href=["']([^"']+)["'][^>]*>([^<]*)<\/a>/gi;
+  
+  // Pattern 1: Simple <a> tag with text inside
+  const simpleLinkRegex = /<a[^>]+href=["']([^"']+)["'][^>]*>([^<]*)<\/a>/gi;
   let match;
   
-  while ((match = linkRegex.exec(html)) !== null) {
+  while ((match = simpleLinkRegex.exec(html)) !== null) {
     const href = match[1];
     const text = match[2].toLowerCase();
     
     if (newsTextPatterns.some(pattern => pattern.test(text))) {
+      try {
+        if (href.startsWith('#') || href.startsWith('javascript:')) continue;
+        const absoluteUrl = new URL(href, baseUrl).href;
+        links.push(absoluteUrl);
+      } catch {
+        // Invalid URL
+      }
+    }
+  }
+  
+  // Pattern 2: <a> tag with nested elements (span, div, etc.)
+  const nestedLinkRegex = /<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  
+  while ((match = nestedLinkRegex.exec(html)) !== null) {
+    const href = match[1];
+    // Remove all HTML tags and get plain text
+    const innerText = match[2].replace(/<[^>]+>/g, ' ').toLowerCase().trim();
+    
+    if (newsTextPatterns.some(pattern => pattern.test(innerText))) {
       try {
         if (href.startsWith('#') || href.startsWith('javascript:')) continue;
         const absoluteUrl = new URL(href, baseUrl).href;
