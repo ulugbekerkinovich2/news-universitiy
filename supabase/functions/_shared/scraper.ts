@@ -284,31 +284,45 @@ export async function scrapeUniversity(
     for (const post of posts) {
       const { data } = post;
       
-      // Check for duplicates
+      // Create hash fingerprint for duplicate detection
       const hashFingerprint = createHashFingerprint(data.title, data.publishedAt, data.contentText);
       
-      const { data: existing } = await supabase
+      // Check for duplicates by source_url first
+      const { data: existingByUrl } = await supabase
         .from('news_posts')
         .select('id')
         .eq('source_url', data.sourceUrl)
         .maybeSingle();
       
+      // Also check by hash_fingerprint for same university (catches reposts with different URLs)
+      const { data: existingByHash } = await supabase
+        .from('news_posts')
+        .select('id')
+        .eq('university_id', universityId)
+        .eq('hash_fingerprint', hashFingerprint)
+        .maybeSingle();
+      
+      const existing = existingByUrl || existingByHash;
+      
       if (existing) {
-        // Update existing post
-        await supabase
-          .from('news_posts')
-          .update({
-            title: data.title,
-            summary: data.summary,
-            content_html: data.contentHtml,
-            content_text: data.contentText,
-            published_at: data.publishedAt,
-            canonical_url: data.canonicalUrl,
-            language: data.language,
-            hash_fingerprint: hashFingerprint,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', existing.id);
+        // Update existing post (only if found by URL, skip if found by hash - true duplicate)
+        if (existingByUrl) {
+          await supabase
+            .from('news_posts')
+            .update({
+              title: data.title,
+              summary: data.summary,
+              content_html: data.contentHtml,
+              content_text: data.contentText,
+              published_at: data.publishedAt,
+              canonical_url: data.canonicalUrl,
+              language: data.language,
+              hash_fingerprint: hashFingerprint,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existingByUrl.id);
+        }
+        // If found by hash but not URL, it's a duplicate - skip entirely
       } else {
         // Insert new post
         const slug = createSlug(data.title);
