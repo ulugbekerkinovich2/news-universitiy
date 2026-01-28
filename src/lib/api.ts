@@ -316,6 +316,36 @@ export async function createScrapeJob(scope: 'ALL_UNIVERSITIES' | 'SINGLE_UNIVER
   return job as ScrapeJob;
 }
 
+// Get all failed universities and scrape them one by one
+export async function scrapeFailedUniversities(): Promise<{ queued: number }> {
+  // Get all failed universities
+  const { data: failedUnis, error } = await supabase
+    .from('universities')
+    .select('id')
+    .eq('scrape_status', 'FAILED');
+
+  if (error) throw error;
+
+  if (!failedUnis || failedUnis.length === 0) {
+    return { queued: 0 };
+  }
+
+  // Queue scrape jobs for each failed university
+  let queued = 0;
+  for (const uni of failedUnis) {
+    try {
+      await createScrapeJob('SINGLE_UNIVERSITY', uni.id);
+      queued++;
+      // Small delay to prevent overwhelming the system
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } catch (e) {
+      console.error(`Failed to queue scrape for ${uni.id}:`, e);
+    }
+  }
+
+  return { queued };
+}
+
 export async function cancelScrapeJob(jobId: string): Promise<void> {
   const { error } = await supabase
     .from('scrape_jobs')
