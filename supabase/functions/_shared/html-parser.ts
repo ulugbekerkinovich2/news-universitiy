@@ -356,8 +356,15 @@ export function extractArticleContent(html: string): { html: string; text: strin
     /<div[^>]+class=["'][^"']*article[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
     /<div[^>]+class=["'][^"']*entry[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
     /<div[^>]+class=["'][^"']*single[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
-    // Article tag
+    // Common Uzbek university patterns
+    /<div[^>]+class=["'][^"']*detail[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class=["'][^"']*page[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class=["'][^"']*main[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class=["'][^"']*text[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class=["'][^"']*body[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
+    // Article and section tags
     /<article[^>]*>([\s\S]*?)<\/article>/i,
+    /<section[^>]+class=["'][^"']*content["'][^>]*>([\s\S]*?)<\/section>/i,
     // Main tag
     /<main[^>]*>([\s\S]*?)<\/main>/i,
   ];
@@ -372,13 +379,32 @@ export function extractArticleContent(html: string): { html: string; text: strin
   
   // If no specific content found, try broader patterns
   if (!content) {
-    const contentDivMatch = html.match(/<div[^>]+class=["'][^"']*(?:content|article|post|entry|news)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
-    if (contentDivMatch) {
+    const contentDivMatch = html.match(/<div[^>]+class=["'][^"']*(?:content|article|post|entry|news|detail|text|body)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+    if (contentDivMatch && contentDivMatch[1].length > 100) {
       content = contentDivMatch[1];
-    } else {
-      const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-      content = bodyMatch ? bodyMatch[1] : html;
     }
+  }
+  
+  // Try to find substantial paragraph content
+  if (!content || content.length < 100) {
+    const paragraphs: string[] = [];
+    const pRegex = /<p[^>]*>([\s\S]*?)<\/p>/gi;
+    let match;
+    while ((match = pRegex.exec(html)) !== null) {
+      const pText = match[1].replace(/<[^>]+>/g, '').trim();
+      if (pText.length > 50) {
+        paragraphs.push(match[0]);
+      }
+    }
+    if (paragraphs.length > 0) {
+      content = paragraphs.join('\n');
+    }
+  }
+  
+  // Last resort: get body content
+  if (!content || content.length < 50) {
+    const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    content = bodyMatch ? bodyMatch[1] : html;
   }
   
   // Remove unwanted elements
@@ -392,8 +418,9 @@ export function extractArticleContent(html: string): { html: string; text: strin
   content = content.replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '');
   content = content.replace(/<!--[\s\S]*?-->/gi, '');
   
-  // Remove social media widgets, share buttons, breadcrumbs
-  content = content.replace(/<div[^>]+class=["'][^"']*(?:share|social|breadcrumb|sidebar|widget|comment)[^"']*["'][^>]*>[\s\S]*?<\/div>/gi, '');
+  // Remove social media widgets, share buttons, breadcrumbs, menus
+  content = content.replace(/<div[^>]+class=["'][^"']*(?:share|social|breadcrumb|sidebar|widget|comment|menu|nav|footer|header)[^"']*["'][^>]*>[\s\S]*?<\/div>/gi, '');
+  content = content.replace(/<ul[^>]+class=["'][^"']*(?:menu|nav|breadcrumb)[^"']*["'][^>]*>[\s\S]*?<\/ul>/gi, '');
   
   // Remove data URIs (base64 images)
   content = content.replace(/src=["']data:image[^"']+["']/gi, 'src=""');
