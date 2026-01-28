@@ -26,7 +26,7 @@ export const UniversityCard = memo(function UniversityCard({
 }: UniversityCardProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [isFetchingLogo, setIsFetchingLogo] = useState(false);
-  const displayName = university.name_en || university.name_uz;
+  const displayName = university.name_uz;
   const hasSSLError = university.last_error_message?.includes("certificate") || 
                       university.last_error_message?.includes("SSL") ||
                       university.last_error_message?.includes("fetch");
