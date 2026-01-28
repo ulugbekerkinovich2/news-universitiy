@@ -203,7 +203,29 @@ serve(async (req) => {
           }
         );
 
-        const scrapeResult = await scrapeResponse.json();
+        // Check if response is valid before parsing JSON
+        const responseText = await scrapeResponse.text();
+        let scrapeResult;
+        
+        try {
+          scrapeResult = JSON.parse(responseText);
+        } catch (parseError) {
+          // JSON parsing failed - save error to university
+          const errorMsg = `Response parsing error: ${responseText.substring(0, 200)}`;
+          console.error(`Error parsing response for university ${university.id}:`, errorMsg);
+          
+          await supabaseService
+            .from('universities')
+            .update({
+              scrape_status: 'FAILED',
+              last_error_message: errorMsg,
+              last_scraped_at: new Date().toISOString(),
+            })
+            .eq('id', university.id);
+          
+          results.failed++;
+          continue;
+        }
 
         if (scrapeResult.success) {
           if (scrapeResult.postsFound > 0) {
@@ -215,6 +237,17 @@ serve(async (req) => {
             results.noNews++;
           }
         } else {
+          // Save the error message from scrape result to university
+          const errorMsg = scrapeResult.error || 'Unknown scrape error';
+          await supabaseService
+            .from('universities')
+            .update({
+              scrape_status: 'FAILED',
+              last_error_message: errorMsg,
+              last_scraped_at: new Date().toISOString(),
+            })
+            .eq('id', university.id);
+          
           results.failed++;
         }
 
@@ -236,7 +269,19 @@ serve(async (req) => {
           .eq('id', job.id);
 
       } catch (error) {
-        console.error(`Error scraping university ${university.id}:`, error);
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`Error scraping university ${university.id}:`, errorMsg);
+        
+        // Save error to university record
+        await supabaseService
+          .from('universities')
+          .update({
+            scrape_status: 'FAILED',
+            last_error_message: errorMsg,
+            last_scraped_at: new Date().toISOString(),
+          })
+          .eq('id', university.id);
+        
         results.failed++;
       }
     }
