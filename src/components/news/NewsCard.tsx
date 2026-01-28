@@ -106,7 +106,7 @@ export function NewsCard({ post, showUniversity = true, showDelete = false, onDe
                       className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
                     >
                       <Building2 className="h-3 w-3" />
-                      {post.university.name_en || post.university.name_uz}
+                      {post.university.name_uz}
                     </Link>
                   )}
 
