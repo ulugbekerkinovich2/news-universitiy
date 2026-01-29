@@ -15,11 +15,12 @@ export interface ExtractedPost {
   videos: Array<{ url: string; provider: string }>;
 }
 
-// Common news URL patterns
+// Common news URL patterns - expanded for Uzbek universities
 const NEWS_URL_PATTERNS = [
   /\/news/i,
   /\/new(?:\/|$)/i,  // /new or /new/ but not /news
   /\/yangiliklar/i,
+  /\/yangilik/i,
   /\/novosti/i,
   /\/press/i,
   /\/media/i,
@@ -27,16 +28,35 @@ const NEWS_URL_PATTERNS = [
   /\/articles?/i,
   /\/posts?/i,
   /\/maqola/i,
+  /\/maqolalar/i,
   /\/xabar/i,
+  /\/xabarlar/i,
   /\/axborot/i,
   /\/e['\u2019]?lon/i,  // e'lon, elon
   /\/habar/i,
+  /\/habarlar/i,
   /\/matbuot/i,
   /\/announcements?/i,
   /\/updates?/i,
   /\/events?/i,
   /\/tadbirlar/i,
   /\/voqealar/i,
+  /\/faoliyat/i,
+  /\/activity/i,
+  /\/category\/yangiliklar/i,
+  /\/category\/news/i,
+  /\/category\/novosti/i,
+  /\/post\//i,
+  /\/single\//i,
+  /\/detail\//i,
+  /\/view\//i,
+  /\/read\//i,
+  /\/item\//i,
+  /\/page\/\d+/i,
+  /\?.*page=\d+/i,
+  /\/uz\/new/i,
+  /\/ru\/new/i,
+  /\/en\/new/i,
 ];
 
 // URLs to exclude (not news)
@@ -45,6 +65,7 @@ const EXCLUDE_URL_PATTERNS = [
   /\/qabul/i,
   /\/faculty/i,
   /\/fakultet/i,
+  /\/kafedra/i,
   /\/program/i,
   /\/dastur/i,
   /\/contact/i,
@@ -69,11 +90,31 @@ const EXCLUDE_URL_PATTERNS = [
   /\/js\//i,
   /\/images?\//i,
   /\/uploads?\//i,
+  /\/download\//i,
+  /\/file\//i,
+  /\/document\//i,
+  /\/schedule/i,
+  /\/jadval/i,
+  /\/timetable/i,
+  /\/library/i,
+  /\/kutubxona/i,
+  /\/staff/i,
+  /\/hodimlar/i,
+  /\/gallery/i,
+  /\/galereya/i,
+  /\/photo/i,
+  /\/video(?!s?\/)/i, // exclude /video/ but allow /videos
   /\.pdf$/i,
   /\.doc/i,
   /\.xls/i,
   /\.zip$/i,
   /\.rar$/i,
+  /\.ppt/i,
+  /\.mp3$/i,
+  /\.mp4$/i,
+  /\.jpg$/i,
+  /\.png$/i,
+  /\.gif$/i,
 ];
 
 export function isNewsUrl(url: string): boolean {
@@ -83,7 +124,13 @@ export function isNewsUrl(url: string): boolean {
   // Check if URL should be excluded
   const shouldExclude = EXCLUDE_URL_PATTERNS.some(pattern => pattern.test(url));
   
-  return matchesNewsPattern && !shouldExclude;
+  // Also check for numeric ID patterns common in news URLs
+  const hasNewsId = /\/\d{2,}[\/\-]?[a-z]?$/i.test(url) || // /123 or /123-title
+                    /[?&]id=\d+/i.test(url) || // ?id=123
+                    /[?&]post=\d+/i.test(url) || // ?post=123
+                    /[?&]news=\d+/i.test(url); // ?news=123
+  
+  return (matchesNewsPattern || hasNewsId) && !shouldExclude;
 }
 
 export function isExcludedUrl(url: string): boolean {
@@ -119,13 +166,15 @@ export function extractLinks(html: string, baseUrl: string): string[] {
   return [...new Set(links)];
 }
 
-// Find news listing pages
+// Find news listing pages - expanded patterns
 export function findNewsListingUrls(html: string, baseUrl: string): string[] {
   const links = extractLinks(html, baseUrl);
   const newsListingPatterns = [
     /\/news\/?$/i,
-    /\/new\/?$/i,  // /new or /new/
+    /\/news\/?\?/i,
+    /\/new\/?$/i,
     /\/yangiliklar\/?$/i,
+    /\/yangiliklar\/?\?/i,
     /\/novosti\/?$/i,
     /\/press\/?$/i,
     /\/media\/?$/i,
@@ -142,6 +191,10 @@ export function findNewsListingUrls(html: string, baseUrl: string): string[] {
     /\/updates?\/?$/i,
     /\/events?\/?$/i,
     /\/tadbirlar?\/?$/i,
+    /\/faoliyat\/?$/i,
+    /\/category\/yangiliklar/i,
+    /\/category\/news/i,
+    /\/category\/novosti/i,
   ];
   
   return links.filter(link => 
@@ -149,17 +202,17 @@ export function findNewsListingUrls(html: string, baseUrl: string): string[] {
   );
 }
 
-// Find news links by searching for keywords in link text
+// Find news links by searching for keywords in link text - expanded keywords
 export function findNewsLinksByText(html: string, baseUrl: string): string[] {
   const newsTextPatterns = [
     /yangiliklar/i,
-    /yangilik/i,  // singular form
+    /yangilik/i,
     /novosti/i,
-    /новости/i,  // Russian Cyrillic
+    /новости/i,
     /news/i,
     /latest\s*news/i,
-    /lates[t]?\s*news/i,
     /so['']?nggi\s*yangiliklar/i,
+    /oxirgi\s*yangiliklar/i,
     /последние\s*новости/i,
     /maqolalar/i,
     /maqola/i,
@@ -182,6 +235,15 @@ export function findNewsLinksByText(html: string, baseUrl: string): string[] {
     /barcha\s*yangiliklar/i,
     /barchasi/i,
     /ko['']proq/i,
+    /batafsil/i,
+    /davomi/i,
+    /ko['']proq\s*o['']qish/i,
+    /read\s*more/i,
+    /подробнее/i,
+    /faoliyat/i,
+    /tadbirlar/i,
+    /voqealar/i,
+    /events/i,
   ];
   
   const links: string[] = [];
@@ -233,18 +295,39 @@ export function extractNewsPostLinks(html: string, baseUrl: string): string[] {
   return links.filter(link => isNewsUrl(link) && !isExcludedUrl(link));
 }
 
-// Extract title from HTML
+// Extract title from HTML - improved with more patterns
 export function extractTitle(html: string): string {
-  // Try h1 first
+  // Try h1 with news/post classes first
+  const h1ClassMatch = html.match(/<h1[^>]+class=["'][^"']*(?:title|heading|post|news|article)[^"']*["'][^>]*>([^<]+)<\/h1>/i);
+  if (h1ClassMatch) {
+    return decodeHtmlEntities(h1ClassMatch[1].trim());
+  }
+  
+  // Try plain h1
   const h1Match = html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
   if (h1Match) {
     return decodeHtmlEntities(h1Match[1].trim());
+  }
+  
+  // Try h1 with nested tags
+  const h1NestedMatch = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+  if (h1NestedMatch) {
+    const text = h1NestedMatch[1].replace(/<[^>]+>/g, '').trim();
+    if (text.length > 5) {
+      return decodeHtmlEntities(text);
+    }
   }
   
   // Try og:title
   const ogTitleMatch = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i);
   if (ogTitleMatch) {
     return decodeHtmlEntities(ogTitleMatch[1].trim());
+  }
+  
+  // Try twitter:title
+  const twitterTitleMatch = html.match(/<meta[^>]+name=["']twitter:title["'][^>]+content=["']([^"']+)["']/i);
+  if (twitterTitleMatch) {
+    return decodeHtmlEntities(twitterTitleMatch[1].trim());
   }
   
   // Try title tag
@@ -292,6 +375,29 @@ export function extractCoverImage(html: string, baseUrl: string): string | null 
     }
   }
   
+  // Try twitter:image
+  const twitterImageMatch = html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);
+  if (twitterImageMatch) {
+    try {
+      return new URL(twitterImageMatch[1], baseUrl).href;
+    } catch {
+      return twitterImageMatch[1];
+    }
+  }
+  
+  // Try first large image in content
+  const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["'][^>]*(?:width=["'](\d+)["'])?/i);
+  if (imgMatch && imgMatch[1] && !imgMatch[1].startsWith('data:')) {
+    const width = imgMatch[2] ? parseInt(imgMatch[2]) : 0;
+    if (width === 0 || width >= 200) {
+      try {
+        return new URL(imgMatch[1], baseUrl).href;
+      } catch {
+        return imgMatch[1];
+      }
+    }
+  }
+  
   return null;
 }
 
@@ -305,6 +411,8 @@ export function extractImages(html: string, baseUrl: string): string[] {
     try {
       const src = match[1];
       if (src.startsWith('data:')) continue; // Skip data URIs
+      if (src.includes('icon') || src.includes('logo') || src.includes('avatar')) continue; // Skip icons
+      if (src.endsWith('.svg') || src.endsWith('.ico')) continue; // Skip SVG and ICO
       
       const absoluteUrl = new URL(src, baseUrl).href;
       images.push(absoluteUrl);
@@ -340,40 +448,83 @@ export function extractVideos(html: string): Array<{ url: string; provider: stri
     });
   }
   
+  // Instagram embeds
+  const instagramRegex = /instagram\.com\/(?:p|reel)\/([a-zA-Z0-9_-]+)/gi;
+  while ((match = instagramRegex.exec(html)) !== null) {
+    videos.push({
+      url: `https://www.instagram.com/p/${match[1]}/`,
+      provider: 'instagram'
+    });
+  }
+  
+  // Telegram embeds
+  const telegramRegex = /t\.me\/([a-zA-Z0-9_]+)\/(\d+)/gi;
+  while ((match = telegramRegex.exec(html)) !== null) {
+    videos.push({
+      url: `https://t.me/${match[1]}/${match[2]}`,
+      provider: 'telegram'
+    });
+  }
+  
   return videos;
 }
 
-// Extract article content - improved to get cleaner content
+// Extract article content - improved with many more patterns for Uzbek sites
 export function extractArticleContent(html: string): { html: string; text: string } {
   let content = '';
   
   // Try specific content selectors first (most specific to least)
   const contentPatterns = [
-    // Look for blog/news detail content
+    // Blog/news detail content - common patterns
     /<div[^>]+class=["'][^"']*blog__details__content["'][^>]*>([\s\S]*?)<\/div>/i,
     /<div[^>]+class=["'][^"']*news[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
     /<div[^>]+class=["'][^"']*post[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
     /<div[^>]+class=["'][^"']*article[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
     /<div[^>]+class=["'][^"']*entry[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
     /<div[^>]+class=["'][^"']*single[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
-    // Common Uzbek university patterns
-    /<div[^>]+class=["'][^"']*detail[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
-    /<div[^>]+class=["'][^"']*page[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
-    /<div[^>]+class=["'][^"']*main[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
-    /<div[^>]+class=["'][^"']*text[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
-    /<div[^>]+class=["'][^"']*body[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
+    
+    // Common Uzbek university patterns - expanded
+    /<div[^>]+class=["'][^"']*detail[-_]?(content|text|body)["'][^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class=["'][^"']*page[-_]?(content|text|body)["'][^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class=["'][^"']*main[-_]?(content|text|body)["'][^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class=["'][^"']*text[-_]?(content|body|block)["'][^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class=["'][^"']*body[-_]?(content|text)["'][^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class=["'][^"']*full[-_]?(content|text)["'][^>]*>([\s\S]*?)<\/div>/i,
+    
+    // CMS specific patterns
+    /<div[^>]+class=["'][^"']*wp[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class=["'][^"']*cms[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class=["'][^"']*editor[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class=["'][^"']*ck[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
+    
+    // ID-based selectors
+    /<div[^>]+id=["']content["'][^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+id=["']article[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+id=["']post[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+id=["']news[-_]?content["'][^>]*>([\s\S]*?)<\/div>/i,
+    
+    // Description/summary patterns
+    /<div[^>]+class=["'][^"']*description["'][^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class=["'][^"']*summary["'][^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]+class=["'][^"']*intro["'][^>]*>([\s\S]*?)<\/div>/i,
+    
     // Article and section tags
     /<article[^>]*>([\s\S]*?)<\/article>/i,
     /<section[^>]+class=["'][^"']*content["'][^>]*>([\s\S]*?)<\/section>/i,
+    /<section[^>]+class=["'][^"']*article["'][^>]*>([\s\S]*?)<\/section>/i,
+    
     // Main tag
     /<main[^>]*>([\s\S]*?)<\/main>/i,
   ];
   
   for (const pattern of contentPatterns) {
     const match = html.match(pattern);
-    if (match && match[1].length > 100) {
-      content = match[1];
-      break;
+    if (match) {
+      const matchContent = match[match.length - 1]; // Get last capture group
+      if (matchContent && matchContent.length > 100) {
+        content = matchContent;
+        break;
+      }
     }
   }
   
@@ -392,7 +543,7 @@ export function extractArticleContent(html: string): { html: string; text: strin
     let match;
     while ((match = pRegex.exec(html)) !== null) {
       const pText = match[1].replace(/<[^>]+>/g, '').trim();
-      if (pText.length > 50) {
+      if (pText.length > 30) { // Lowered threshold
         paragraphs.push(match[0]);
       }
     }
@@ -417,10 +568,11 @@ export function extractArticleContent(html: string): { html: string; text: strin
   content = content.replace(/<form[^>]*>[\s\S]*?<\/form>/gi, '');
   content = content.replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '');
   content = content.replace(/<!--[\s\S]*?-->/gi, '');
+  content = content.replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '');
   
   // Remove social media widgets, share buttons, breadcrumbs, menus
-  content = content.replace(/<div[^>]+class=["'][^"']*(?:share|social|breadcrumb|sidebar|widget|comment|menu|nav|footer|header)[^"']*["'][^>]*>[\s\S]*?<\/div>/gi, '');
-  content = content.replace(/<ul[^>]+class=["'][^"']*(?:menu|nav|breadcrumb)[^"']*["'][^>]*>[\s\S]*?<\/ul>/gi, '');
+  content = content.replace(/<div[^>]+class=["'][^"']*(?:share|social|breadcrumb|sidebar|widget|comment|menu|nav|footer|header|related|similar|tag|category|author|meta|pagination)[^"']*["'][^>]*>[\s\S]*?<\/div>/gi, '');
+  content = content.replace(/<ul[^>]+class=["'][^"']*(?:menu|nav|breadcrumb|tag|social)[^"']*["'][^>]*>[\s\S]*?<\/ul>/gi, '');
   
   // Remove data URIs (base64 images)
   content = content.replace(/src=["']data:image[^"']+["']/gi, 'src=""');
@@ -437,14 +589,18 @@ export function extractArticleContent(html: string): { html: string; text: strin
   };
 }
 
-// Extract published date
+// Extract published date - improved with more patterns
 export function extractPublishedDate(html: string): string | null {
   // Try various date meta tags
   const datePatterns = [
     /<meta[^>]+property=["']article:published_time["'][^>]+content=["']([^"']+)["']/i,
     /<meta[^>]+name=["']date["'][^>]+content=["']([^"']+)["']/i,
     /<meta[^>]+name=["']DC\.date["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+name=["']pubdate["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+name=["']publish[-_]?date["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+property=["']og:updated_time["'][^>]+content=["']([^"']+)["']/i,
     /<time[^>]+datetime=["']([^"']+)["'][^>]*>/i,
+    /<time[^>]+content=["']([^"']+)["'][^>]*>/i,
   ];
   
   for (const pattern of datePatterns) {
@@ -463,8 +619,11 @@ export function extractPublishedDate(html: string): string | null {
   
   // Try to find date in text using common patterns
   const textDatePatterns = [
-    /(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})/,
-    /(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/,
+    /(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})/,  // DD.MM.YYYY or DD/MM/YYYY
+    /(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/,  // YYYY-MM-DD
+    /(\d{1,2})\s+(yanvar|fevral|mart|aprel|may|iyun|iyul|avgust|sentabr|oktabr|noyabr|dekabr)\s+(\d{4})/i,  // Uzbek month names
+    /(\d{1,2})\s+(январ[яь]|феврал[яь]|марта?|апрел[яь]|ма[йя]|июн[яь]|июл[яь]|августа?|сентябр[яь]|октябр[яь]|ноябр[яь]|декабр[яь])\s+(\d{4})/i,  // Russian month names
+    /(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i,  // English month names
   ];
   
   for (const pattern of textDatePatterns) {
@@ -553,6 +712,10 @@ function decodeHtmlEntities(text: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&#039;/g, "'")
     .replace(/&nbsp;/g, ' ')
+    .replace(/&mdash;/g, '—')
+    .replace(/&ndash;/g, '–')
+    .replace(/&laquo;/g, '«')
+    .replace(/&raquo;/g, '»')
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)));
 }
 
