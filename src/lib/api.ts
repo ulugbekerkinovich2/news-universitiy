@@ -629,3 +629,190 @@ export async function getScrapingStatusDistribution(): Promise<Array<{
     }))
     .sort((a, b) => b.count - a.count);
 }
+
+// Get news posts by time period (daily, weekly, monthly)
+export async function getNewsPostsByTimePeriod(period: 'daily' | 'weekly' | 'monthly' = 'daily', limit = 14): Promise<Array<{
+  date: string;
+  count: number;
+}>> {
+  const { data, error } = await supabase
+    .from('news_posts')
+    .select('published_at, created_at');
+
+  if (error) throw error;
+
+  const counts: Record<string, number> = {};
+  const now = new Date();
+  
+  // Initialize dates based on period
+  for (let i = 0; i < limit; i++) {
+    const date = new Date(now);
+    if (period === 'daily') {
+      date.setDate(date.getDate() - i);
+    } else if (period === 'weekly') {
+      date.setDate(date.getDate() - (i * 7));
+    } else {
+      date.setMonth(date.getMonth() - i);
+    }
+    
+    const key = period === 'monthly' 
+      ? date.toISOString().slice(0, 7)  // YYYY-MM
+      : date.toISOString().slice(0, 10); // YYYY-MM-DD
+    counts[key] = 0;
+  }
+
+  (data || []).forEach((post: { published_at: string | null; created_at: string }) => {
+    const postDate = post.published_at || post.created_at;
+    if (!postDate) return;
+    
+    const key = period === 'monthly' 
+      ? postDate.slice(0, 7)
+      : postDate.slice(0, 10);
+    
+    if (counts[key] !== undefined) {
+      counts[key]++;
+    }
+  });
+
+  return Object.entries(counts)
+    .map(([date, count]) => ({ date, count }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// Get news posts language distribution
+export async function getLanguageDistribution(): Promise<Array<{
+  language: string;
+  count: number;
+  percentage: number;
+}>> {
+  const { data, error } = await supabase
+    .from('news_posts')
+    .select('language');
+
+  if (error) throw error;
+
+  const langCounts: Record<string, number> = {};
+  let total = 0;
+
+  (data || []).forEach((post: { language: string }) => {
+    const lang = post.language || 'unknown';
+    langCounts[lang] = (langCounts[lang] || 0) + 1;
+    total++;
+  });
+
+  const languageLabels: Record<string, string> = {
+    uz: "O'zbek",
+    ru: "Русский",
+    en: "English",
+    unknown: "Noma'lum",
+  };
+
+  return Object.entries(langCounts)
+    .map(([language, count]) => ({
+      language: languageLabels[language] || language,
+      count,
+      percentage: total > 0 ? Math.round((count / total) * 100) : 0,
+    }))
+    .sort((a, b) => b.count - a.count);
+}
+
+// Get media statistics
+export async function getMediaStats(): Promise<{
+  totalImages: number;
+  totalVideos: number;
+  postsWithMedia: number;
+  avgImagesPerPost: number;
+}> {
+  const { data: images, count: totalImages } = await supabase
+    .from('media_assets')
+    .select('*', { count: 'exact', head: true })
+    .eq('type', 'image');
+
+  const { data: videos, count: totalVideos } = await supabase
+    .from('media_assets')
+    .select('*', { count: 'exact', head: true })
+    .eq('type', 'video');
+
+  const { data: postsWithMedia } = await supabase
+    .from('news_posts')
+    .select('id')
+    .not('cover_image_id', 'is', null);
+
+  const avgImagesPerPost = postsWithMedia && postsWithMedia.length > 0 
+    ? Math.round((totalImages || 0) / postsWithMedia.length * 10) / 10 
+    : 0;
+
+  return {
+    totalImages: totalImages || 0,
+    totalVideos: totalVideos || 0,
+    postsWithMedia: postsWithMedia?.length || 0,
+    avgImagesPerPost,
+  };
+}
+
+// Get scraping performance stats
+export async function getScrapingPerformanceStats(): Promise<{
+  avgPostsPerUniversity: number;
+  successRate: number;
+  totalScrapedUniversities: number;
+  universitiesWithNews: number;
+}> {
+  const { data: universities } = await supabase
+    .from('universities')
+    .select('id, scrape_status');
+
+  const { count: totalPosts } = await supabase
+    .from('news_posts')
+    .select('*', { count: 'exact', head: true });
+
+  const stats = universities || [];
+  const totalScraped = stats.filter(u => 
+    ['DONE', 'NO_NEWS', 'FAILED'].includes(u.scrape_status)
+  ).length;
+  
+  const successfulScrapes = stats.filter(u => u.scrape_status === 'DONE').length;
+  const successRate = totalScraped > 0 ? Math.round((successfulScrapes / totalScraped) * 100) : 0;
+  
+  const avgPostsPerUniversity = successfulScrapes > 0 
+    ? Math.round((totalPosts || 0) / successfulScrapes * 10) / 10 
+    : 0;
+
+  return {
+    avgPostsPerUniversity,
+    successRate,
+    totalScrapedUniversities: totalScraped,
+    universitiesWithNews: successfulScrapes,
+  };
+}
+
+// Get recent scrape jobs summary
+export async function getRecentScrapeJobsSummary(): Promise<{
+  last24h: { total: number; successful: number; failed: number };
+  last7d: { total: number; successful: number; failed: number };
+  last30d: { total: number; successful: number; failed: number };
+}> {
+  const now = new Date();
+  const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+  const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const last30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: jobs } = await supabase
+    .from('scrape_jobs')
+    .select('status, created_at')
+    .gte('created_at', last30d);
+
+  const summarize = (since: string) => {
+    const filtered = (jobs || []).filter(j => j.created_at >= since);
+    return {
+      total: filtered.length,
+      successful: filtered.filter(j => j.status === 'DONE').length,
+      failed: filtered.filter(j => j.status === 'FAILED').length,
+    };
+  };
+
+  return {
+    last24h: summarize(last24h),
+    last7d: summarize(last7d),
+    last30d: summarize(last30d),
+  };
+}

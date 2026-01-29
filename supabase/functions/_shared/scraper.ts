@@ -13,11 +13,13 @@ import { isValidExternalUrl } from './url-validator.ts';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-// Rate limiting: delay between requests (ms)
-const REQUEST_DELAY = 1500;
-const MAX_PAGES_PER_UNIVERSITY = 50;
-const MAX_RETRIES = 3;
-const REQUEST_TIMEOUT = 15000;
+// Optimized settings for faster scraping
+const REQUEST_DELAY = 1000; // Reduced from 1500ms
+const CONCURRENT_REQUESTS = 3; // Parallel requests
+const MAX_PAGES_PER_UNIVERSITY = 60; // Increased from 50
+const MAX_POSTS_TO_PARSE = 100; // Max posts to parse per university
+const MAX_RETRIES = 2; // Reduced from 3
+const REQUEST_TIMEOUT = 12000; // Reduced from 15000
 
 interface ScrapeProgress {
   jobId: string;
@@ -29,6 +31,35 @@ interface ScrapeProgress {
   postsSaved: number;
   imagesSaved: number;
   videosSaved: number;
+}
+
+// Batch fetch with concurrency control
+async function fetchBatch<T>(
+  items: T[],
+  fetchFn: (item: T) => Promise<string | null>,
+  concurrency: number
+): Promise<Map<T, string | null>> {
+  const results = new Map<T, string | null>();
+  
+  for (let i = 0; i < items.length; i += concurrency) {
+    const batch = items.slice(i, i + concurrency);
+    const promises = batch.map(async (item) => {
+      const result = await fetchFn(item);
+      return { item, result };
+    });
+    
+    const batchResults = await Promise.all(promises);
+    for (const { item, result } of batchResults) {
+      results.set(item, result);
+    }
+    
+    // Delay between batches
+    if (i + concurrency < items.length) {
+      await sleep(REQUEST_DELAY);
+    }
+  }
+  
+  return results;
 }
 
 async function fetchWithRetry(url: string, retries = MAX_RETRIES): Promise<string | null> {
@@ -49,6 +80,7 @@ async function fetchWithRetry(url: string, retries = MAX_RETRIES): Promise<strin
           'User-Agent': 'Mozilla/5.0 (compatible; UniversityNewsBot/1.0; +https://edu.uz)',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'uz,ru,en;q=0.5',
+          'Accept-Encoding': 'gzip, deflate',
         },
       });
       
@@ -56,13 +88,11 @@ async function fetchWithRetry(url: string, retries = MAX_RETRIES): Promise<strin
       
       // Skip 404, 410 (gone), and other client errors - don't retry
       if (response.status === 404 || response.status === 410) {
-        console.log(`Skipping ${url}: ${response.status} Not Found`);
         return null;
       }
       
       // Skip server errors after last retry
       if (response.status >= 500 && i === retries - 1) {
-        console.log(`Skipping ${url}: Server error ${response.status}`);
         return null;
       }
       
@@ -149,7 +179,7 @@ export async function scrapeUniversity(
     // Find news links by link text (e.g. "Yangiliklar", "News")
     const newsLinksByText = findNewsLinksByText(homeHtml, websiteUrl);
     
-    // Also check common news URL patterns
+    // Also check common news URL patterns - expanded list
     const commonNewsUrls = [
       `${baseUrl}/news`,
       `${baseUrl}/news/`,
@@ -164,6 +194,7 @@ export async function scrapeUniversity(
       `${baseUrl}/maqolalar`,
       `${baseUrl}/xabarlar`,
       `${baseUrl}/axborot`,
+      `${baseUrl}/faoliyat`,
       `${baseUrl}/uz/news`,
       `${baseUrl}/uz/new`,
       `${baseUrl}/uz/yangiliklar`,
@@ -175,23 +206,35 @@ export async function scrapeUniversity(
       `${baseUrl}/uz/posts`,
       `${baseUrl}/ru/posts`,
       `${baseUrl}/en/posts`,
+      `${baseUrl}/category/yangiliklar`,
+      `${baseUrl}/category/news`,
+      `${baseUrl}/category/novosti`,
+      `${baseUrl}/blog`,
+      `${baseUrl}/articles`,
+      // Also check if the provided URL itself has page variants
+      `${websiteUrl}`,
+      `${websiteUrl}?page=2`,
+      `${websiteUrl}/page/2`,
     ];
     
     const allNewsUrls = [...new Set([...newsListingUrls, ...newsLinksByText, ...commonNewsUrls])];
     progress.pagesDiscovered = allNewsUrls.length;
     
-    // Step 2: Crawl news listing pages to find post links
+    // Step 2: Crawl news listing pages to find post links (with parallel fetching)
     progress.stage = 'CRAWL';
     await logProgress(supabase, progress);
     
     const newsPostUrls: Set<string> = new Set();
+    const urlsToFetch = allNewsUrls.slice(0, MAX_PAGES_PER_UNIVERSITY);
     
-    for (const listingUrl of allNewsUrls) {
-      if (progress.pagesScanned >= MAX_PAGES_PER_UNIVERSITY) break;
-      
-      await sleep(REQUEST_DELAY);
-      const listingHtml = await fetchWithRetry(listingUrl);
-      
+    // Fetch listing pages in batches
+    const listingResults = await fetchBatch(
+      urlsToFetch,
+      (url) => fetchWithRetry(url),
+      CONCURRENT_REQUESTS
+    );
+    
+    for (const [listingUrl, listingHtml] of listingResults) {
       if (listingHtml) {
         progress.pagesScanned++;
         const postLinks = extractNewsPostLinks(listingHtml, listingUrl);
@@ -201,19 +244,22 @@ export async function scrapeUniversity(
         const allLinks = extractLinks(listingHtml, listingUrl);
         const paginationLinks = allLinks.filter(link => 
           /[?&]page=\d/i.test(link) || /\/page\/\d/i.test(link)
-        );
+        ).slice(0, 3); // Get first 3 pagination pages
         
-        // Get first 3 pagination pages
-        for (const pageLink of paginationLinks.slice(0, 3)) {
-          if (progress.pagesScanned >= MAX_PAGES_PER_UNIVERSITY) break;
+        // Fetch pagination pages in parallel
+        if (paginationLinks.length > 0) {
+          const pageResults = await fetchBatch(
+            paginationLinks,
+            (url) => fetchWithRetry(url),
+            CONCURRENT_REQUESTS
+          );
           
-          await sleep(REQUEST_DELAY);
-          const pageHtml = await fetchWithRetry(pageLink);
-          
-          if (pageHtml) {
-            progress.pagesScanned++;
-            const moreLinks = extractNewsPostLinks(pageHtml, pageLink);
-            moreLinks.forEach(link => newsPostUrls.add(link));
+          for (const [, pageHtml] of pageResults) {
+            if (pageHtml) {
+              progress.pagesScanned++;
+              const moreLinks = extractNewsPostLinks(pageHtml, listingUrl);
+              moreLinks.forEach(link => newsPostUrls.add(link));
+            }
           }
         }
       }
@@ -241,7 +287,7 @@ export async function scrapeUniversity(
       return { success: true, postsFound: 0, imagesSaved: 0, videosSaved: 0 };
     }
     
-    // Step 3: Parse each news post
+    // Step 3: Parse each news post (with parallel fetching)
     progress.stage = 'PARSE';
     await logProgress(supabase, progress);
     
@@ -250,16 +296,18 @@ export async function scrapeUniversity(
       url: string;
     }> = [];
     
-    for (const postUrl of newsPostUrls) {
-      if (progress.pagesScanned >= MAX_PAGES_PER_UNIVERSITY) break;
-      
-      await sleep(REQUEST_DELAY);
-      const postHtml = await fetchWithRetry(postUrl);
-      
-      // Skip if fetch failed (404, timeout, error, etc.)
-      if (!postHtml) {
-        continue;
-      }
+    // Limit posts to parse
+    const postUrlsArray = Array.from(newsPostUrls).slice(0, MAX_POSTS_TO_PARSE);
+    
+    // Fetch posts in batches
+    const postResults = await fetchBatch(
+      postUrlsArray,
+      (url) => fetchWithRetry(url),
+      CONCURRENT_REQUESTS
+    );
+    
+    for (const [postUrl, postHtml] of postResults) {
+      if (!postHtml) continue;
       
       progress.pagesScanned++;
       const postData = parseNewsPost(postHtml, postUrl);
@@ -270,7 +318,8 @@ export async function scrapeUniversity(
           postData.title.toLowerCase().includes('404') ||
           postData.title.toLowerCase().includes('not found') ||
           postData.title.toLowerCase().includes('error') ||
-          postData.contentText.length < 50) {
+          postData.title.toLowerCase().includes('page not found') ||
+          postData.contentText.length < 30) { // Lowered threshold
         continue;
       }
       
@@ -365,8 +414,8 @@ export async function scrapeUniversity(
           progress.postsSaved++;
           
           // Step 5: Save media assets
-          // Save images
-          for (const imageUrl of data.images.slice(0, 10)) { // Limit to 10 images per post
+          // Save images (limit to 15 per post)
+          for (const imageUrl of data.images.slice(0, 15)) {
             const { error: mediaError } = await supabase
               .from('media_assets')
               .insert({
