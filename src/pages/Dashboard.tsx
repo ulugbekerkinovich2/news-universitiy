@@ -3,6 +3,7 @@ import { Layout } from "@/components/layout/Layout";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { JobProgress } from "@/components/dashboard/JobProgress";
 import { ScrapingStatsCharts } from "@/components/dashboard/ScrapingStatsCharts";
+import { LastScheduledScrape } from "@/components/dashboard/LastScheduledScrape";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -285,6 +286,9 @@ export default function Dashboard() {
 
         {/* Stats */}
         {statsSection}
+
+        {/* Last Scheduled Scrape */}
+        <LastScheduledScrape />
 
         {/* Active Jobs */}
         <div className="space-y-4">

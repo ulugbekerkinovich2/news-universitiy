@@ -469,6 +469,38 @@ export async function exportNewsPosts(filters: ExportFilters): Promise<ExportedN
   }));
 }
 
+// Get last scheduled scrape job result
+export async function getLastScheduledScrape(): Promise<{
+  id: string;
+  status: string;
+  started_at: string | null;
+  finished_at: string | null;
+  totals_json: Record<string, number> | null;
+} | null> {
+  const { data, error } = await supabase
+    .from('scrape_jobs')
+    .select('id, status, started_at, finished_at, totals_json')
+    .eq('scope', 'ALL_UNIVERSITIES')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data as {
+    id: string;
+    status: string;
+    started_at: string | null;
+    finished_at: string | null;
+    totals_json: Record<string, number> | null;
+  } | null;
+}
+
+// Trigger scheduled scrape manually
+export async function triggerScheduledScrape(): Promise<void> {
+  const { error } = await supabase.functions.invoke('scheduled-scrape');
+  if (error) throw error;
+}
+
 // Statistics
 export async function getStats(): Promise<{
   totalUniversities: number;
