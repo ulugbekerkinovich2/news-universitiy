@@ -13,12 +13,13 @@ serve(async (req) => {
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Get all universities with DONE status (successfully scraped before)
+    // Get all universities with websites (any status except NO_SOURCE)
     const { data: universities, error: fetchError } = await supabase
       .from('universities')
       .select('id, name_uz')
-      .eq('scrape_status', 'DONE')
-      .not('website', 'is', null);
+      .not('website', 'is', null)
+      .neq('scrape_status', 'NO_SOURCE')
+      .neq('scrape_status', 'IN_PROGRESS'); // Skip currently running ones
 
     if (fetchError) {
       throw new Error(`Failed to fetch universities: ${fetchError.message}`);
@@ -28,7 +29,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: 'No universities with DONE status to scrape',
+          message: 'No universities available to scrape',
           count: 0 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
