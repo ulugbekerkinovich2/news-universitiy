@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.public-api]
 verify_jwt = false
+
+[functions.scheduled-scrape]
+verify_jwt = false
