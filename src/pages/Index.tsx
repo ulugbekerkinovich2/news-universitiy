@@ -2,15 +2,15 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { UniversityCard } from "@/components/universities/UniversityCard";
 import { UniversitiesFilters } from "@/components/universities/UniversitiesFilters";
+import { BulkScrapeDialog } from "@/components/universities/BulkScrapeDialog";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { Pagination } from "@/components/common/Pagination";
 import { EmptyState } from "@/components/common/EmptyState";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getUniversities, getRegions, getStats, createScrapeJob, scrapeFailedUniversities } from "@/lib/api";
 import type { University, ScrapeStatus } from "@/types/database";
 import { useToast } from "@/hooks/use-toast";
-import { GraduationCap, Newspaper, CheckCircle2, AlertTriangle, RefreshCw, Building2 } from "lucide-react";
+import { GraduationCap, Newspaper, CheckCircle2, AlertTriangle, Building2 } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 
 const LIMIT = 12;
@@ -22,6 +22,7 @@ export default function Index() {
   const [isLoading, setIsLoading] = useState(true);
   const [scrapingId, setScrapingId] = useState<string | null>(null);
   const [isScrapingFailed, setIsScrapingFailed] = useState(false);
+  const [isBulkScraping, setIsBulkScraping] = useState(false);
 
   const [search, setSearch] = useState("");
   const [region, setRegion] = useState("all");
@@ -112,21 +113,26 @@ export default function Index() {
     }
   }, [toast, loadUniversities, loadStats]);
 
-  const handleScrapeAll = useCallback(async () => {
+  const handleBulkScrape = useCallback(async (statuses: ScrapeStatus[]) => {
+    setIsBulkScraping(true);
     try {
-      await createScrapeJob("ALL_UNIVERSITIES");
+      await createScrapeJob("ALL_UNIVERSITIES", undefined, statuses);
       toast({
         title: "Scrape job yaratildi",
-        description: "Barcha universitetlar scrape qilinmoqda",
+        description: `${statuses.length} ta statusdagi universitetlar scrape qilinmoqda`,
       });
+      loadUniversities();
+      loadStats();
     } catch (error) {
       toast({
         title: "Xatolik",
         description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
+    } finally {
+      setIsBulkScraping(false);
     }
-  }, [toast]);
+  }, [toast, loadUniversities, loadStats]);
 
   const handleScrapeAllFailed = useCallback(async () => {
     setIsScrapingFailed(true);
@@ -243,14 +249,12 @@ export default function Index() {
             <p className="mt-3 text-primary-foreground/80">
               O'zbekiston bo'ylab universitetlarning rasmiy veb-saytlaridan yangiliklar to'plash va aggregatsiya qilish.
             </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Button 
-                onClick={handleScrapeAll}
-                className="bg-accent text-accent-foreground hover:bg-accent/90"
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Barchasini Scrape qilish
-              </Button>
+            <div className="mt-6">
+              <BulkScrapeDialog
+                statusCounts={stats?.byStatus}
+                onScrape={handleBulkScrape}
+                isScraping={isBulkScraping}
+              />
             </div>
           </div>
         </div>
