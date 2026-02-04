@@ -12,7 +12,11 @@ const UNIVERSITY_ID_PATTERN = /^[a-zA-Z0-9_-]{1,50}$/;
 // Valid job scopes
 const VALID_SCOPES = ['ALL_UNIVERSITIES', 'SINGLE_UNIVERSITY'] as const;
 
+// Valid scrape statuses for filtering
+const VALID_SCRAPE_STATUSES = ['IDLE', 'IN_PROGRESS', 'DONE', 'FAILED', 'NO_SOURCE', 'NO_NEWS'] as const;
+
 export type JobScope = typeof VALID_SCOPES[number];
+export type ScrapeStatusFilter = typeof VALID_SCRAPE_STATUSES[number];
 
 export interface ValidationResult<T> {
   success: boolean;
@@ -23,6 +27,7 @@ export interface ValidationResult<T> {
 export interface StartJobInput {
   scope: JobScope;
   universityId?: string;
+  statusFilters?: ScrapeStatusFilter[];
 }
 
 export interface ScrapeUniversityInput {
@@ -49,6 +54,24 @@ export function isValidUniversityId(value: unknown): value is string {
  */
 export function isValidScope(value: unknown): value is JobScope {
   return typeof value === 'string' && VALID_SCOPES.includes(value as JobScope);
+}
+
+/**
+ * Validates scrape status filter
+ */
+export function isValidScrapeStatus(value: unknown): value is ScrapeStatusFilter {
+  return typeof value === 'string' && VALID_SCRAPE_STATUSES.includes(value as ScrapeStatusFilter);
+}
+
+/**
+ * Validates array of status filters
+ */
+export function validateStatusFilters(filters: unknown): ScrapeStatusFilter[] | null {
+  if (!filters) return null;
+  if (!Array.isArray(filters)) return null;
+  
+  const validFilters = filters.filter(isValidScrapeStatus);
+  return validFilters.length > 0 ? validFilters : null;
 }
 
 /**
@@ -94,11 +117,15 @@ export function validateStartJobInput(input: unknown): ValidationResult<StartJob
     };
   }
   
+  // Validate statusFilters if provided
+  const statusFilters = validateStatusFilters(data.statusFilters);
+  
   return {
     success: true,
     data: {
       scope: data.scope as JobScope,
-      universityId: data.universityId as string | undefined
+      universityId: data.universityId as string | undefined,
+      statusFilters: statusFilters || undefined
     }
   };
 }

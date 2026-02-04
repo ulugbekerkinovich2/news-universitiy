@@ -75,7 +75,7 @@ serve(async (req) => {
       );
     }
 
-    const { scope, universityId } = validation.data!;
+    const { scope, universityId, statusFilters } = validation.data!;
 
     // Create the job
     const { data: job, error: jobError } = await supabaseService
@@ -97,12 +97,18 @@ serve(async (req) => {
     let universities: Array<{ id: string; website: string | null }> = [];
 
     if (scope === 'ALL_UNIVERSITIES') {
-      const { data } = await supabaseService
+      let query = supabaseService
         .from('universities')
-        .select('id, website')
+        .select('id, website, scrape_status')
         .not('website', 'is', null)
         .neq('website', '');
       
+      // Apply status filters if provided
+      if (statusFilters && statusFilters.length > 0) {
+        query = query.in('scrape_status', statusFilters);
+      }
+      
+      const { data } = await query;
       universities = data || [];
     } else {
       // Verify the university exists
