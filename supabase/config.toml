@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.scheduled-scrape]
 verify_jwt = false
+
+[functions.ai-scrape-helper]
+verify_jwt = false
