@@ -7,6 +7,8 @@ import {
   parseNewsPost,
   createHashFingerprint,
   createSlug,
+  generateLanguageVariants,
+  extractLanguageSwitcherLinks,
 } from './html-parser.ts';
 import { isValidExternalUrl } from './url-validator.ts';
 
@@ -15,11 +17,12 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 // Optimized settings for faster scraping
 const REQUEST_DELAY = 1000; // Reduced from 1500ms
-const CONCURRENT_REQUESTS = 3; // Parallel requests
+const CONCURRENT_REQUESTS = 5; // Increased for parallel language fetching
 const MAX_PAGES_PER_UNIVERSITY = 60; // Increased from 50
-const MAX_POSTS_TO_PARSE = 100; // Max posts to parse per university
+const MAX_POSTS_TO_PARSE = 150; // Increased for multi-language
 const MAX_RETRIES = 2; // Reduced from 3
 const REQUEST_TIMEOUT = 12000; // Reduced from 15000
+const LANGUAGES = ['uz', 'ru', 'en'] as const;
 
 interface ScrapeProgress {
   jobId: string;
@@ -296,15 +299,40 @@ export async function scrapeUniversity(
       url: string;
     }> = [];
     
-    // Limit posts to parse
-    const postUrlsArray = Array.from(newsPostUrls).slice(0, MAX_POSTS_TO_PARSE);
+    // Limit posts to parse, then expand with language variants
+    const basePostUrls = Array.from(newsPostUrls).slice(0, MAX_POSTS_TO_PARSE);
+    
+    // Generate language variants for each post URL
+    const allPostUrlsWithLangs: Array<{ url: string; isVariant: boolean }> = [];
+    const processedBaseUrls = new Set<string>();
+    
+    for (const postUrl of basePostUrls) {
+      // Add original URL
+      allPostUrlsWithLangs.push({ url: postUrl, isVariant: false });
+      processedBaseUrls.add(postUrl);
+      
+      // Generate language variants
+      const variants = generateLanguageVariants(postUrl);
+      for (const variant of variants) {
+        if (!processedBaseUrls.has(variant)) {
+          allPostUrlsWithLangs.push({ url: variant, isVariant: true });
+          processedBaseUrls.add(variant);
+        }
+      }
+    }
+    
+    console.log(`Found ${basePostUrls.length} base posts, expanded to ${allPostUrlsWithLangs.length} with language variants`);
     
     // Fetch posts in batches
+    const postUrlsArray = allPostUrlsWithLangs.map(p => p.url);
     const postResults = await fetchBatch(
       postUrlsArray,
       (url) => fetchWithRetry(url),
       CONCURRENT_REQUESTS
     );
+    
+    // Track posts by content hash to avoid duplicate content in different languages
+    const seenContentHashes = new Set<string>();
     
     for (const [postUrl, postHtml] of postResults) {
       if (!postHtml) continue;
@@ -322,6 +350,37 @@ export async function scrapeUniversity(
           postData.contentText.length < 30) { // Lowered threshold
         continue;
       }
+      
+      // Also try to extract language switcher links for more variants
+      const langLinks = extractLanguageSwitcherLinks(postHtml, postUrl);
+      for (const [lang, langUrl] of langLinks) {
+        if (!processedBaseUrls.has(langUrl)) {
+          processedBaseUrls.add(langUrl);
+          // Fetch this language variant
+          const langHtml = await fetchWithRetry(langUrl);
+          if (langHtml) {
+            const langPostData = parseNewsPost(langHtml, langUrl);
+            if (langPostData.title.length > 5 && 
+                langPostData.title !== 'Untitled' &&
+                langPostData.contentText.length >= 30) {
+              // Create a content hash to detect if it's truly different content
+              const contentHash = createHashFingerprint(langPostData.title, langPostData.publishedAt, langPostData.contentText);
+              if (!seenContentHashes.has(contentHash)) {
+                seenContentHashes.add(contentHash);
+                langPostData.language = lang; // Override detected language with explicit
+                posts.push({ data: langPostData, url: langUrl });
+              }
+            }
+          }
+        }
+      }
+      
+      // Check if this content hash was already seen
+      const contentHash = createHashFingerprint(postData.title, postData.publishedAt, postData.contentText);
+      if (seenContentHashes.has(contentHash)) {
+        continue; // Skip duplicate content
+      }
+      seenContentHashes.add(contentHash);
       
       posts.push({ data: postData, url: postUrl });
     }

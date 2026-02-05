@@ -703,6 +703,121 @@ export function createSlug(title: string): string {
     .substring(0, 100);
 }
 
+// Generate language variants of a URL
+export function generateLanguageVariants(url: string): string[] {
+  const variants: string[] = [url];
+  
+  try {
+    const urlObj = new URL(url);
+    const pathname = urlObj.pathname;
+    
+    // Common language path patterns
+    const langPatterns = [
+      { from: /^\/uz\//i, to: ['/ru/', '/en/'] },
+      { from: /^\/ru\//i, to: ['/uz/', '/en/'] },
+      { from: /^\/en\//i, to: ['/uz/', '/ru/'] },
+      { from: /^\/oz\//i, to: ['/ru/', '/en/'] }, // Some sites use 'oz' for Uzbek
+      { from: /^\/(uz|ru|en|oz)-/i, to: null }, // uz-news, ru-news patterns
+    ];
+    
+    for (const pattern of langPatterns) {
+      if (pattern.from.test(pathname) && pattern.to) {
+        for (const replacement of pattern.to) {
+          const newPath = pathname.replace(pattern.from, replacement);
+          urlObj.pathname = newPath;
+          variants.push(urlObj.href);
+        }
+        break;
+      }
+    }
+    
+    // If no language prefix found, try adding language prefixes
+    if (variants.length === 1) {
+      const langPrefixes = ['/uz', '/ru', '/en'];
+      for (const prefix of langPrefixes) {
+        // Check if path doesn't already start with a lang prefix
+        if (!pathname.match(/^\/(uz|ru|en|oz)\//i)) {
+          urlObj.pathname = prefix + pathname;
+          variants.push(urlObj.href);
+        }
+      }
+    }
+    
+    // Also try query parameter variants
+    const langParams = ['lang', 'language', 'l', 'locale'];
+    const languages = ['uz', 'ru', 'en'];
+    
+    for (const param of langParams) {
+      if (urlObj.searchParams.has(param)) {
+        for (const lang of languages) {
+          const newUrl = new URL(url);
+          newUrl.searchParams.set(param, lang);
+          if (newUrl.href !== url) {
+            variants.push(newUrl.href);
+          }
+        }
+        break;
+      }
+    }
+  } catch {
+    // Invalid URL, return original only
+  }
+  
+  return [...new Set(variants)];
+}
+
+// Extract language switcher links from HTML
+export function extractLanguageSwitcherLinks(html: string, baseUrl: string): Map<string, string> {
+  const langLinks = new Map<string, string>();
+  
+  // Common patterns for language switchers
+  const langSwitcherPatterns = [
+    // Links with hreflang attribute
+    /<a[^>]+hreflang=["'](uz|ru|en|oz)["'][^>]+href=["']([^"']+)["']/gi,
+    // Links with lang/language class or data attribute
+    /<a[^>]+(?:class|data-lang|data-language)=["'][^"']*(?:uz|ru|en|ozb?|uzb?)["'][^>]+href=["']([^"']+)["']/gi,
+    // Links to /uz/, /ru/, /en/ paths
+    /<a[^>]+href=["']([^"']*\/(uz|ru|en|oz)\/[^"']*)["']/gi,
+    // Links with language text
+    /<a[^>]+href=["']([^"']+)["'][^>]*>(?:\s*<[^>]+>)*\s*(?:O['']?zbek|Ўзбек|Русский|English|Рус|Узб|Eng|UZ|RU|EN)\s*(?:<\/[^>]+>)*\s*<\/a>/gi,
+  ];
+  
+  for (const pattern of langSwitcherPatterns) {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      try {
+        // Extract language and URL based on pattern structure
+        let lang: string;
+        let href: string;
+        
+        if (match.length >= 3) {
+          lang = match[1].toLowerCase();
+          href = match[2];
+        } else {
+          href = match[1];
+          // Detect language from URL
+          if (/\/(uz|ozb?)(?:\/|$)/i.test(href)) lang = 'uz';
+          else if (/\/ru(?:\/|$)/i.test(href)) lang = 'ru';
+          else if (/\/en(?:\/|$)/i.test(href)) lang = 'en';
+          else continue;
+        }
+        
+        // Normalize language code
+        if (lang === 'oz' || lang === 'ozb' || lang === 'uzb') lang = 'uz';
+        
+        const absoluteUrl = new URL(href, baseUrl).href;
+        if (!langLinks.has(lang)) {
+          langLinks.set(lang, absoluteUrl);
+        }
+      } catch {
+        // Invalid URL
+      }
+    }
+  }
+  
+  return langLinks;
+}
+
 // Decode HTML entities
 function decodeHtmlEntities(text: string): string {
   return text
