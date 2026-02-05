@@ -244,6 +244,10 @@ export function findNewsLinksByText(html: string, baseUrl: string): string[] {
     /tadbirlar/i,
     /voqealar/i,
     /events/i,
+   /universitet\s*hayoti/i,
+   /university\s*life/i,
+   /студенческая\s*жизнь/i,
+   /talabalar\s*hayoti/i,
   ];
   
   const links: string[] = [];
