@@ -9,20 +9,23 @@ import {
   createSlug,
   generateLanguageVariants,
   extractLanguageSwitcherLinks,
+  isNewsUrl,
 } from './html-parser.ts';
 import { isValidExternalUrl } from './url-validator.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
 // Optimized settings for faster scraping
-const REQUEST_DELAY = 1000; // Reduced from 1500ms
+const REQUEST_DELAY = 800; // Faster with AI assistance
 const CONCURRENT_REQUESTS = 5; // Increased for parallel language fetching
-const MAX_PAGES_PER_UNIVERSITY = 60; // Increased from 50
-const MAX_POSTS_TO_PARSE = 150; // Increased for multi-language
+const MAX_PAGES_PER_UNIVERSITY = 80; // Increased with AI filtering
+const MAX_POSTS_TO_PARSE = 200; // Increased for multi-language
 const MAX_RETRIES = 2; // Reduced from 3
 const REQUEST_TIMEOUT = 12000; // Reduced from 15000
 const LANGUAGES = ['uz', 'ru', 'en'] as const;
+const AI_ENABLED = !!LOVABLE_API_KEY;
 
 interface ScrapeProgress {
   jobId: string;
@@ -120,6 +123,113 @@ async function fetchWithRetry(url: string, retries = MAX_RETRIES): Promise<strin
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// AI-powered link classification
+async function classifyLinksWithAI(
+  links: string[],
+  baseUrl: string
+): Promise<{ newsLinks: string[]; confidence: Record<string, number> }> {
+  if (!LOVABLE_API_KEY || links.length === 0) {
+    return { newsLinks: links, confidence: {} };
+  }
+
+  try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/ai-scrape-helper`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: 'classify_links',
+        links: links.slice(0, 100), // Limit batch size
+        baseUrl,
+      }),
+    });
+
+    if (!response.ok) {
+      console.log('AI classification failed, using fallback');
+      return { newsLinks: links, confidence: {} };
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('AI classification error:', error);
+    return { newsLinks: links, confidence: {} };
+  }
+}
+
+// AI-powered content extraction
+async function extractContentWithAI(
+  html: string,
+  url: string
+): Promise<{
+  title: string;
+  content: string;
+  summary: string;
+  publishedAt: string | null;
+  language: string;
+} | null> {
+  if (!LOVABLE_API_KEY) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/ai-scrape-helper`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: 'extract_content',
+        html: html.slice(0, 50000), // Limit HTML size
+        url,
+      }),
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('AI extraction error:', error);
+    return null;
+  }
+}
+
+// Batch classify HTML snippets with AI
+async function batchClassifyWithAI(
+  snippets: Array<{ url: string; snippet: string }>
+): Promise<Array<{ url: string; isNews: boolean; title: string | null }>> {
+  if (!LOVABLE_API_KEY || snippets.length === 0) {
+    return snippets.map(s => ({ url: s.url, isNews: true, title: null }));
+  }
+
+  try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/ai-scrape-helper`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: 'batch_classify',
+        htmlSnippets: snippets,
+      }),
+    });
+
+    if (!response.ok) {
+      return snippets.map(s => ({ url: s.url, isNews: true, title: null }));
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('AI batch classify error:', error);
+    return snippets.map(s => ({ url: s.url, isNews: true, title: null }));
+  }
 }
 
 // deno-lint-ignore no-explicit-any
@@ -272,6 +382,26 @@ export async function scrapeUniversity(
     const homeNewsLinks = extractNewsPostLinks(homeHtml, websiteUrl);
     homeNewsLinks.forEach(link => newsPostUrls.add(link));
     
+    // Use AI to filter and classify links if available
+    if (AI_ENABLED && newsPostUrls.size > 0) {
+      console.log(`AI: Classifying ${newsPostUrls.size} potential news links...`);
+      const { newsLinks: aiFilteredLinks, confidence } = await classifyLinksWithAI(
+        Array.from(newsPostUrls),
+        baseUrl
+      );
+      
+      // Keep only high-confidence links (>0.6) or all if AI fails
+      const filteredLinks = aiFilteredLinks.filter(link => 
+        !confidence[link] || confidence[link] > 0.6
+      );
+      
+      if (filteredLinks.length > 0) {
+        newsPostUrls.clear();
+        filteredLinks.forEach(link => newsPostUrls.add(link));
+        console.log(`AI: Filtered to ${newsPostUrls.size} news links`);
+      }
+    }
+    
     progress.postsFound = newsPostUrls.size;
     
     if (newsPostUrls.size === 0) {
@@ -338,7 +468,42 @@ export async function scrapeUniversity(
       if (!postHtml) continue;
       
       progress.pagesScanned++;
-      const postData = parseNewsPost(postHtml, postUrl);
+      
+      // Try AI extraction first for better accuracy
+      let postData: ReturnType<typeof parseNewsPost>;
+      
+      if (AI_ENABLED && progress.pagesScanned <= 30) { // Use AI for first 30 posts
+        const aiContent = await extractContentWithAI(postHtml, postUrl);
+        if (aiContent && aiContent.title && aiContent.content) {
+          // Use AI-extracted content
+          postData = {
+            title: aiContent.title,
+            summary: aiContent.summary || aiContent.content.slice(0, 200),
+            contentHtml: `<p>${aiContent.content.replace(/\n\n/g, '</p><p>')}</p>`,
+            contentText: aiContent.content,
+            publishedAt: aiContent.publishedAt,
+            sourceUrl: postUrl,
+            canonicalUrl: null,
+            language: aiContent.language || 'unknown',
+            coverImageUrl: null,
+            images: [],
+            videos: [],
+          };
+          
+          // Add images/videos from regex extraction
+          const regexData = parseNewsPost(postHtml, postUrl);
+          postData.coverImageUrl = regexData.coverImageUrl;
+          postData.images = regexData.images;
+          postData.videos = regexData.videos;
+          postData.canonicalUrl = regexData.canonicalUrl;
+        } else {
+          // Fallback to regex extraction
+          postData = parseNewsPost(postHtml, postUrl);
+        }
+      } else {
+        // Regular regex extraction
+        postData = parseNewsPost(postHtml, postUrl);
+      }
       
       // Skip if title is too short, generic, or looks like an error page
       if (postData.title.length <= 5 || 
@@ -383,6 +548,30 @@ export async function scrapeUniversity(
       seenContentHashes.add(contentHash);
       
       posts.push({ data: postData, url: postUrl });
+    }
+    
+    // Batch verify with AI if we have many posts
+    if (AI_ENABLED && posts.length > 20) {
+      console.log(`AI: Batch verifying ${posts.length} posts...`);
+      const snippets = posts.slice(0, 50).map(p => ({
+        url: p.url,
+        snippet: `<h1>${p.data.title}</h1><p>${p.data.contentText.slice(0, 500)}</p>`,
+      }));
+      
+      const verifyResults = await batchClassifyWithAI(snippets);
+      const validUrls = new Set(
+        verifyResults.filter(r => r.isNews).map(r => r.url)
+      );
+      
+      // Filter out non-news posts
+      const originalCount = posts.length;
+      const filteredPosts = posts.filter(p => validUrls.has(p.url) || !snippets.find(s => s.url === p.url));
+      
+      if (filteredPosts.length > 0 && filteredPosts.length < originalCount) {
+        posts.length = 0;
+        posts.push(...filteredPosts);
+        console.log(`AI: Verified ${posts.length} posts (removed ${originalCount - posts.length} non-news)`);
+      }
     }
     
     // Step 4: Save posts
