@@ -19,7 +19,26 @@ import { getNewsPosts, getUniversity } from "@/lib/api";
 import type { NewsPost, University } from "@/types/database";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Newspaper, Search, ArrowLeft, GraduationCap, ExternalLink, Calendar } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { format } from "date-fns";
+
+// Region names mapping
+const REGION_NAMES: Record<string, string> = {
+  "1": "Toshkent shahri",
+  "2": "Toshkent viloyati",
+  "3": "Andijon viloyati",
+  "4": "Buxoro viloyati",
+  "5": "Farg'ona viloyati",
+  "6": "Jizzax viloyati",
+  "7": "Xorazm viloyati",
+  "8": "Namangan viloyati",
+  "9": "Navoiy viloyati",
+  "10": "Qashqadaryo viloyati",
+  "11": "Qoraqalpog'iston Respublikasi",
+  "12": "Samarqand viloyati",
+  "13": "Sirdaryo viloyati",
+  "14": "Surxondaryo viloyati",
+};
 
 const LIMIT = 15;
 
@@ -123,6 +142,12 @@ export default function UniversityNewsPage() {
                 <h1 className="font-heading text-2xl font-bold text-foreground">
                   {university.name_uz}
                 </h1>
+                {university.region_id && REGION_NAMES[university.region_id] && (
+                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
+                    <MapPin className="h-4 w-4" />
+                    {REGION_NAMES[university.region_id]}
+                  </div>
+                )}
                 {university.website && (
                   <a
                     href={university.website}
@@ -224,7 +249,11 @@ const languageLabels: Record<string, string> = {
 };
 
 function FeaturedNewsCard({ post }: { post: NewsPost }) {
-  const coverImage = post.cover_image?.original_url || post.cover_image?.stored_url;
+  // First try cover_image, then first media_asset image
+  const coverImage = post.cover_image?.original_url || 
+                     post.cover_image?.stored_url ||
+                     post.media_assets?.find(m => m.type === 'image')?.original_url ||
+                     post.media_assets?.find(m => m.type === 'image')?.stored_url;
 
   return (
     <Link to={`/news/${post.id}`} className="block group">
@@ -273,7 +302,11 @@ function FeaturedNewsCard({ post }: { post: NewsPost }) {
 }
 
 function NewsGridCard({ post, index }: { post: NewsPost; index: number }) {
-  const coverImage = post.cover_image?.original_url || post.cover_image?.stored_url;
+  // First try cover_image, then first media_asset image
+  const coverImage = post.cover_image?.original_url || 
+                     post.cover_image?.stored_url ||
+                     post.media_assets?.find(m => m.type === 'image')?.original_url ||
+                     post.media_assets?.find(m => m.type === 'image')?.stored_url;
 
   return (
     <Link 

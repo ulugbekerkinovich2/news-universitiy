@@ -139,6 +139,12 @@
              schema: { type: "string" },
              description: "Universitet ID bo'yicha filter",
            },
+            {
+              name: "region_id",
+              in: "query",
+              schema: { type: "string" },
+              description: "Viloyat ID bo'yicha filter (1-14)",
+            },
            {
              name: "language",
              in: "query",
@@ -304,8 +310,8 @@
      "/regions": {
        get: {
          tags: ["Hududlar"],
-         summary: "Viloyatlar ro'yxatini olish",
-         description: "Ma'lumotlar bazasida mavjud bo'lgan barcha viloyat ID'larini qaytaradi.",
+          summary: "Viloyatlar ro'yxatini olish (nomlari bilan)",
+          description: "Ma'lumotlar bazasida mavjud bo'lgan barcha viloyatlar ID va nomlarini qaytaradi.",
          responses: {
            "200": {
              description: "Muvaffaqiyatli",
@@ -317,8 +323,18 @@
                      success: { type: "boolean", example: true },
                      data: {
                        type: "array",
-                       items: { type: "string" },
-                       example: ["1", "2", "3", "10", "11", "12", "13", "14"],
+                        items: { 
+                          type: "object",
+                          properties: {
+                            id: { type: "string", example: "1" },
+                            name: { type: "string", example: "Toshkent shahri" },
+                          },
+                        },
+                        example: [
+                          { id: "1", name: "Toshkent shahri" },
+                          { id: "2", name: "Toshkent viloyati" },
+                          { id: "3", name: "Andijon viloyati" },
+                        ],
                      },
                      meta: {
                        type: "object",
