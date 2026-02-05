@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { ScrapeJob, ScrapeJobEvent } from "@/types/database";
-import { XCircle, Activity, CheckCircle2, AlertCircle, Loader2, Search, FileText, Image, Database } from "lucide-react";
+import { XCircle, Activity, CheckCircle2, AlertCircle, Loader2, Search, FileText, Image, Database, GraduationCap } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +44,7 @@ const EventItem = memo(function EventItem({
   const counters = event.counters_json || {};
   const hasError = event.message?.toLowerCase().includes('error') || 
                    event.message?.toLowerCase().includes('failed');
+  const universityName = event.university?.name_uz;
   
   return (
     <div 
@@ -64,6 +65,12 @@ const EventItem = memo(function EventItem({
           {stageIcons[event.stage]}
           {event.stage}
         </span>
+        {universityName && (
+          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary border border-primary/20 truncate max-w-[200px]">
+            <GraduationCap className="h-3 w-3 shrink-0" />
+            {universityName}
+          </span>
+        )}
         {hasError && (
           <AlertCircle className="h-3 w-3 text-destructive" />
         )}
@@ -191,6 +198,14 @@ export const JobProgress = memo(function JobProgress({ job, events = [], onCance
               {stageIcons[currentStage]}
               <span className="text-xs font-medium">{currentStage}</span>
             </div>
+            {latestEvent.university?.name_uz && (
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-primary/10 border border-primary/20">
+                <GraduationCap className="h-3.5 w-3.5 text-primary" />
+                <span className="text-xs font-medium text-primary truncate max-w-[250px]">
+                  {latestEvent.university.name_uz}
+                </span>
+              </div>
+            )}
             <span className="text-sm text-muted-foreground flex-1 truncate">
               {latestEvent.message || "Ishlayapti..."}
             </span>
