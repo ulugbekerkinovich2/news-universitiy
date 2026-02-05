@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import Index from "./pages/Index";
 import UniversityDetail from "./pages/UniversityDetail";
 import NewsPage from "./pages/NewsPage";
+import UniversityNewsPage from "./pages/UniversityNewsPage";
 import NewsDetail from "./pages/NewsDetail";
 import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
@@ -39,6 +40,7 @@ const App = () => (
           <Routes>
             {/* Public routes - o'qish uchun */}
             <Route path="/news" element={<NewsPage />} />
+            <Route path="/news/university/:universityId" element={<UniversityNewsPage />} />
             <Route path="/news/:id" element={<NewsDetail />} />
             <Route path="/login" element={<Login />} />
             
