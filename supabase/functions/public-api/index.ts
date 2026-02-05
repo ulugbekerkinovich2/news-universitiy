@@ -4,6 +4,24 @@ import { corsHeaders } from "../_shared/cors.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// Region names mapping
+const REGION_NAMES: Record<string, string> = {
+  "1": "Toshkent shahri",
+  "2": "Toshkent viloyati",
+  "3": "Andijon viloyati",
+  "4": "Buxoro viloyati",
+  "5": "Farg'ona viloyati",
+  "6": "Jizzax viloyati",
+  "7": "Xorazm viloyati",
+  "8": "Namangan viloyati",
+  "9": "Navoiy viloyati",
+  "10": "Qashqadaryo viloyati",
+  "11": "Qoraqalpog'iston Respublikasi",
+  "12": "Samarqand viloyati",
+  "13": "Sirdaryo viloyati",
+  "14": "Surxondaryo viloyati",
+};
+
 interface RateLimitResult {
   key_id: string;
   is_valid: boolean;
@@ -156,11 +174,23 @@ Deno.serve(async (req) => {
             source_url,
             canonical_url,
             language,
-            university:universities(id, name_uz, name_en, name_ru, region_id, website)
+            university:universities(id, name_uz, name_en, name_ru, region_id, website),
+            media_assets:media_assets!media_assets_post_id_fkey(id, type, original_url, stored_url)
           `, { count: "exact" });
 
         if (params.university_id) {
           query = query.eq("university_id", params.university_id);
+        }
+        if (params.region_id) {
+          // Get universities in this region first
+          const { data: regionUnis } = await supabase
+            .from("universities")
+            .select("id")
+            .eq("region_id", params.region_id);
+          
+          if (regionUnis && regionUnis.length > 0) {
+            query = query.in("university_id", regionUnis.map((u: { id: string }) => u.id));
+          }
         }
         if (params.language && params.language !== "all") {
           query = query.eq("language", params.language);
@@ -250,7 +280,11 @@ Deno.serve(async (req) => {
 
         if (error) throw error;
         
-        const regions = [...new Set((data as { region_id: string }[]).map((d) => d.region_id))].sort();
+        const regionIds = [...new Set((data as { region_id: string }[]).map((d) => d.region_id))].sort();
+        const regions = regionIds.map(id => ({
+          id,
+          name: REGION_NAMES[id] || `Viloyat ${id}`,
+        }));
         response = { data: regions, count: regions.length };
         break;
       }

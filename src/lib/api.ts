@@ -156,19 +156,33 @@ export async function getNewsPosts(params?: {
   to_date?: string;
   page?: number;
   limit?: number;
+  region_id?: string;
 }): Promise<{ data: NewsPost[]; count: number }> {
-  const { university_id, search, language, from_date, to_date, page = 1, limit = 20 } = params || {};
+  const { university_id, search, language, from_date, to_date, page = 1, limit = 20, region_id } = params || {};
 
   let query = supabase
     .from('news_posts')
     .select(`
       *,
       university:universities(*),
-      cover_image:media_assets!fk_cover_image(id, original_url, stored_url)
+      cover_image:media_assets!fk_cover_image(id, original_url, stored_url),
+      media_assets:media_assets!media_assets_post_id_fkey(id, type, original_url, stored_url)
     `, { count: 'exact' });
 
   if (university_id) {
     query = query.eq('university_id', university_id);
+  }
+  
+  if (region_id) {
+    // First get university IDs in this region, then filter
+    const { data: regionUnis } = await supabase
+      .from('universities')
+      .select('id')
+      .eq('region_id', region_id);
+    
+    if (regionUnis && regionUnis.length > 0) {
+      query = query.in('university_id', regionUnis.map(u => u.id));
+    }
   }
 
   if (search) {
