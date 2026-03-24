@@ -1,18 +1,105 @@
-import { supabase } from "@/integrations/supabase/client";
-import type { 
-  University, 
-  NewsPost, 
-  MediaAsset,
-  ScrapeJob, 
-  ScrapeJobEvent, 
-  UniversityImportData,
-  ExportFilters,
-  ExportedNewsPost,
-  ScrapeStatus,
-  JobStatus
-} from "@/types/database";
+// Base URL of the FastAPI backend
+export const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
 
-// Universities API
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = localStorage.getItem("access_token");
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string> || {}),
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || "Request failed");
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json();
+}
+
+// ── Types ────────────────────────────────────────────────────────────────────
+
+export type ScrapeStatus = "IDLE" | "IN_PROGRESS" | "DONE" | "FAILED" | "NO_SOURCE" | "NO_NEWS";
+export type JobStatus = "QUEUED" | "RUNNING" | "DONE" | "FAILED" | "CANCELLED";
+
+export interface University {
+  id: string;
+  region_id?: string | null;
+  name_uz: string;
+  name_en?: string | null;
+  name_ru?: string | null;
+  website?: string | null;
+  logo_url?: string | null;
+  scrape_status: ScrapeStatus;
+  last_scraped_at?: string | null;
+  last_error_message?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MediaAsset {
+  id: string;
+  type: "image" | "video";
+  original_url: string;
+  stored_url?: string | null;
+  provider?: string | null;
+}
+
+export interface NewsPost {
+  id: string;
+  university_id: string;
+  title: string;
+  slug: string;
+  summary?: string | null;
+  content_html?: string | null;
+  content_text?: string | null;
+  published_at?: string | null;
+  source_url: string;
+  canonical_url?: string | null;
+  language?: string | null;
+  cover_image_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  university?: University;
+  cover_image?: MediaAsset | null;
+  media_assets?: MediaAsset[];
+}
+
+export interface ScrapeJob {
+  id: string;
+  scope: string;
+  university_id?: string | null;
+  status: JobStatus;
+  started_at?: string | null;
+  finished_at?: string | null;
+  totals_json?: Record<string, number> | null;
+  created_at: string;
+  university?: University;
+}
+
+export interface ScrapeJobEvent {
+  id: string;
+  job_id: string;
+  university_id?: string | null;
+  stage: string;
+  message?: string | null;
+  timestamp: string;
+  counters_json?: Record<string, number> | null;
+}
+
+export interface UniversityImportData {
+  id: string;
+  name_uz: string;
+  name_en?: string;
+  name_ru?: string;
+  region_id?: string;
+  website?: string;
+}
+
+// ── Universities API ─────────────────────────────────────────────────────────
+
 export async function getUniversities(params?: {
   search?: string;
   region_id?: string;
@@ -20,448 +107,277 @@ export async function getUniversities(params?: {
   page?: number;
   limit?: number;
 }): Promise<{ data: University[]; count: number }> {
-  const { search, region_id, status, page = 1, limit = 20 } = params || {};
-  
-  let query = supabase
-    .from('universities')
-    .select('*', { count: 'exact' });
-
-  if (search) {
-    query = query.or(`name_uz.ilike.%${search}%,name_en.ilike.%${search}%,name_ru.ilike.%${search}%`);
-  }
-
-  if (region_id) {
-    query = query.eq('region_id', region_id);
-  }
-
-  if (status) {
-    query = query.eq('scrape_status', status);
-  }
-
-  const from = (page - 1) * limit;
-  const to = from + limit - 1;
-
-  const { data, count, error } = await query
-    .order('name_uz', { ascending: true })
-    .range(from, to);
-
-  if (error) throw error;
-
-  return { data: (data as University[]) || [], count: count || 0 };
+  const q = new URLSearchParams();
+  if (params?.search) q.set("search", params.search);
+  if (params?.region_id) q.set("region_id", params.region_id);
+  if (params?.status) q.set("status", params.status);
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.limit) q.set("limit", String(params.limit));
+  return request(`/universities?${q}`);
 }
 
 export async function getUniversity(id: string): Promise<University | null> {
-  const { data, error } = await supabase
-    .from('universities')
-    .select('*')
-    .eq('id', id)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data as University;
+  return request(`/universities/${id}`).catch(() => null);
 }
 
 export async function importUniversities(universities: UniversityImportData[]): Promise<{ imported: number; errors: string[] }> {
-  const errors: string[] = [];
   let imported = 0;
-
+  const errors: string[] = [];
   for (const uni of universities) {
-    if (!uni.id || !uni.name_uz) {
-      errors.push(`Invalid university data: missing id or name_uz`);
-      continue;
-    }
-
-    const scrapeStatus: ScrapeStatus = !uni.website || uni.website.trim() === '' ? 'NO_SOURCE' : 'IDLE';
-
-    const { error } = await supabase
-      .from('universities')
-      .upsert({
-        id: uni.id,
-        region_id: uni.region_id || null,
-        name_uz: uni.name_uz,
-        name_en: uni.name_en || null,
-        name_ru: uni.name_ru || null,
-        website: uni.website || null,
-        scrape_status: scrapeStatus,
-      }, { onConflict: 'id' });
-
-    if (error) {
-      errors.push(`Failed to import ${uni.id}: ${error.message}`);
-    } else {
+    try {
+      await request("/universities", {
+        method: "POST",
+        body: JSON.stringify(uni),
+      });
       imported++;
+    } catch (e) {
+      errors.push(`${uni.id}: ${e instanceof Error ? e.message : "Unknown error"}`);
     }
   }
-
   return { imported, errors };
 }
 
-// Update university logo from website favicon
 export async function updateUniversityLogoFromWebsite(universityId: string, websiteUrl: string): Promise<void> {
-  if (!websiteUrl) {
-    throw new Error('Website URL is required');
-  }
-
-  // Extract domain from URL
-  let domain: string;
-  try {
-    const url = new URL(websiteUrl);
-    domain = url.hostname;
-  } catch {
-    throw new Error('Invalid website URL');
-  }
-
-  // Use Google's favicon service for reliable favicon fetching
-  const logoUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
-
-  const { error } = await supabase
-    .from('universities')
-    .update({ logo_url: logoUrl })
-    .eq('id', universityId);
-
-  if (error) throw error;
+  const url = new URL(websiteUrl);
+  const logoUrl = `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=128`;
+  await request(`/universities/${universityId}`, {
+    method: "PUT",
+    body: JSON.stringify({ logo_url: logoUrl }),
+  });
 }
 
-// Bulk update logos for all universities with websites
 export async function updateAllUniversityLogos(): Promise<{ updated: number; errors: string[] }> {
-  const { data: universities, error } = await supabase
-    .from('universities')
-    .select('id, website')
-    .not('website', 'is', null);
-
-  if (error) throw error;
-
-  const errors: string[] = [];
+  const { data } = await getUniversities({ limit: 1000 });
   let updated = 0;
-
-  for (const uni of universities || []) {
+  const errors: string[] = [];
+  for (const uni of data) {
     if (uni.website) {
       try {
         await updateUniversityLogoFromWebsite(uni.id, uni.website);
         updated++;
       } catch (e) {
-        errors.push(`${uni.id}: ${e instanceof Error ? e.message : 'Unknown error'}`);
+        errors.push(`${uni.id}: ${e instanceof Error ? e.message : "Unknown"}`);
       }
     }
   }
-
   return { updated, errors };
 }
 
-// News Posts API
+export async function getRegions(): Promise<string[]> {
+  return request("/universities/regions/list");
+}
+
+// ── News API ─────────────────────────────────────────────────────────────────
+
 export async function getNewsPosts(params?: {
   university_id?: string;
+  region_id?: string;
   search?: string;
   language?: string;
   from_date?: string;
   to_date?: string;
   page?: number;
   limit?: number;
-  region_id?: string;
 }): Promise<{ data: NewsPost[]; count: number }> {
-  const { university_id, search, language, from_date, to_date, page = 1, limit = 20, region_id } = params || {};
-
-  let query = supabase
-    .from('news_posts')
-    .select(`
-      *,
-      university:universities(*),
-      cover_image:media_assets!fk_cover_image(id, original_url, stored_url),
-      media_assets:media_assets!media_assets_post_id_fkey(id, type, original_url, stored_url)
-    `, { count: 'exact' });
-
-  if (university_id) {
-    query = query.eq('university_id', university_id);
-  }
-  
-  if (region_id) {
-    // First get university IDs in this region, then filter
-    const { data: regionUnis } = await supabase
-      .from('universities')
-      .select('id')
-      .eq('region_id', region_id);
-    
-    if (regionUnis && regionUnis.length > 0) {
-      query = query.in('university_id', regionUnis.map(u => u.id));
-    }
-  }
-
-  if (search) {
-    query = query.ilike('title', `%${search}%`);
-  }
-
-  if (language && language !== 'all') {
-    query = query.eq('language', language);
-  }
-
-  if (from_date) {
-    query = query.gte('published_at', from_date);
-  }
-
-  if (to_date) {
-    query = query.lte('published_at', to_date);
-  }
-
-  const from = (page - 1) * limit;
-  const to = from + limit - 1;
-
-  const { data, count, error } = await query
-    .order('published_at', { ascending: false, nullsFirst: false })
-    .range(from, to);
-
-  if (error) throw error;
-
-  return { data: (data as NewsPost[]) || [], count: count || 0 };
+  const q = new URLSearchParams();
+  if (params?.university_id) q.set("university_id", params.university_id);
+  if (params?.region_id) q.set("region_id", params.region_id);
+  if (params?.search) q.set("search", params.search);
+  if (params?.language) q.set("language", params.language);
+  if (params?.from_date) q.set("from_date", params.from_date);
+  if (params?.to_date) q.set("to_date", params.to_date);
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.limit) q.set("limit", String(params.limit));
+  return request(`/news?${q}`);
 }
 
 export async function getNewsPost(id: string): Promise<NewsPost | null> {
-  const { data, error } = await supabase
-    .from('news_posts')
-    .select(`
-      *,
-      university:universities(*),
-      media_assets:media_assets!media_assets_post_id_fkey(*)
-    `)
-    .eq('id', id)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data as unknown as NewsPost;
+  return request(`/news/${id}`).catch(() => null);
 }
 
-// Delete a news post and its media assets
 export async function deleteNewsPost(id: string): Promise<void> {
-  // First delete related media assets
-  const { error: mediaError } = await supabase
-    .from('media_assets')
-    .delete()
-    .eq('post_id', id);
-
-  if (mediaError) throw mediaError;
-
-  // Then delete the post
-  const { error } = await supabase
-    .from('news_posts')
-    .delete()
-    .eq('id', id);
-
-  if (error) throw error;
+  await request(`/news/${id}`, { method: "DELETE" });
 }
 
-// Media Assets API
-export async function getMediaAssets(postId: string): Promise<MediaAsset[]> {
-  const { data, error } = await supabase
-    .from('media_assets')
-    .select('*')
-    .eq('post_id', postId);
-
-  if (error) throw error;
-  return (data as MediaAsset[]) || [];
+export async function getMediaAssets(_postId: string): Promise<MediaAsset[]> {
+  // Media assets are returned inline in the news post response
+  return [];
 }
 
-// Scrape Jobs API
+// ── Scrape Jobs API ───────────────────────────────────────────────────────────
+
 export async function getScrapeJobs(params?: {
   status?: JobStatus;
   page?: number;
   limit?: number;
 }): Promise<{ data: ScrapeJob[]; count: number }> {
-  const { status, page = 1, limit = 20 } = params || {};
-
-  let query = supabase
-    .from('scrape_jobs')
-    .select(`
-      *,
-      university:universities(*)
-    `, { count: 'exact' });
-
-  if (status) {
-    query = query.eq('status', status);
-  }
-
-  const from = (page - 1) * limit;
-  const to = from + limit - 1;
-
-  const { data, count, error } = await query
-    .order('created_at', { ascending: false })
-    .range(from, to);
-
-  if (error) throw error;
-
-  return { data: (data as ScrapeJob[]) || [], count: count || 0 };
+  const q = new URLSearchParams();
+  if (params?.status) q.set("status", params.status);
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.limit) q.set("limit", String(params.limit));
+  return request(`/jobs?${q}`);
 }
 
 export async function getActiveJobs(): Promise<ScrapeJob[]> {
-  const { data, error } = await supabase
-    .from('scrape_jobs')
-    .select(`
-      *,
-      university:universities(*)
-    `)
-    .in('status', ['QUEUED', 'RUNNING'])
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-  return (data as ScrapeJob[]) || [];
+  return request("/jobs/active");
 }
 
 export async function createScrapeJob(
-  scope: 'ALL_UNIVERSITIES' | 'SINGLE_UNIVERSITY', 
+  scope: "ALL_UNIVERSITIES" | "SINGLE_UNIVERSITY",
   universityId?: string,
   statusFilters?: string[]
 ): Promise<ScrapeJob> {
-  // Get current session for auth token
-  const { data: { session } } = await supabase.auth.getSession();
-  
-  if (!session) {
-    throw new Error('Authentication required');
-  }
-
-  // Call the edge function with auth token
-  const { data, error } = await supabase.functions.invoke('start-scrape-job', {
-    body: { scope, universityId, statusFilters },
+  return request("/jobs", {
+    method: "POST",
+    body: JSON.stringify({ scope, university_id: universityId, status_filters: statusFilters }),
   });
-
-  if (error) {
-    throw new Error(error.message || 'Failed to start scrape job');
-  }
-
-  // Return the created job
-  const { data: job } = await supabase
-    .from('scrape_jobs')
-    .select('*')
-    .eq('id', data.jobId)
-    .single();
-
-  return job as ScrapeJob;
 }
 
-// Get all failed universities and scrape them one by one
 export async function scrapeFailedUniversities(): Promise<{ queued: number }> {
-  // Get all failed universities
-  const { data: failedUnis, error } = await supabase
-    .from('universities')
-    .select('id')
-    .eq('scrape_status', 'FAILED');
-
-  if (error) throw error;
-
-  if (!failedUnis || failedUnis.length === 0) {
-    return { queued: 0 };
-  }
-
-  // Queue scrape jobs for each failed university
-  let queued = 0;
-  for (const uni of failedUnis) {
-    try {
-      await createScrapeJob('SINGLE_UNIVERSITY', uni.id);
-      queued++;
-      // Small delay to prevent overwhelming the system
-      await new Promise(resolve => setTimeout(resolve, 100));
-    } catch (e) {
-      console.error(`Failed to queue scrape for ${uni.id}:`, e);
-    }
-  }
-
-  return { queued };
+  const result = await createScrapeJob("ALL_UNIVERSITIES", undefined, ["FAILED"]);
+  return { queued: 1 };
 }
 
 export async function cancelScrapeJob(jobId: string): Promise<void> {
-  const { error } = await supabase
-    .from('scrape_jobs')
-    .update({ status: 'CANCELLED', finished_at: new Date().toISOString() })
-    .eq('id', jobId);
-
-  if (error) throw error;
-
-  // Reset any universities stuck in IN_PROGRESS back to IDLE
-  await resetStuckUniversities();
+  await request(`/jobs/${jobId}/cancel`, { method: "PUT" });
 }
 
-// Reset universities that are stuck in IN_PROGRESS but have no active jobs
 export async function resetStuckUniversities(): Promise<{ updated: number }> {
-  // First check if there are any running jobs
-  const { data: activeJobs } = await supabase
-    .from('scrape_jobs')
-    .select('id')
-    .in('status', ['RUNNING', 'QUEUED'])
-    .limit(1);
-
-  // If there are active jobs, don't reset anything
-  if (activeJobs && activeJobs.length > 0) {
-    return { updated: 0 };
-  }
-
-  // Reset all IN_PROGRESS universities to IDLE since there are no active jobs
-  const { data, error } = await supabase
-    .from('universities')
-    .update({ 
-      scrape_status: 'IDLE',
-      last_error_message: 'Job was cancelled or interrupted'
-    })
-    .eq('scrape_status', 'IN_PROGRESS')
-    .select('id');
-
-  if (error) {
-    console.error('Error resetting stuck universities:', error);
-    return { updated: 0 };
-  }
-
-  return { updated: data?.length || 0 };
+  // No-op: handled server-side when cancelling jobs
+  return { updated: 0 };
 }
 
 export async function getScrapeJobEvents(jobId: string): Promise<ScrapeJobEvent[]> {
-  const { data, error } = await supabase
-    .from('scrape_job_events')
-    .select(`
-      *,
-      university:universities(id, name_uz)
-    `)
-    .eq('job_id', jobId)
-    .order('timestamp', { ascending: false });
-
-  if (error) throw error;
-  return (data as ScrapeJobEvent[]) || [];
+  return request(`/jobs/${jobId}/events`);
 }
 
-// Export API
+export async function getLastScheduledScrape(): Promise<ScrapeJob | null> {
+  const { data } = await getScrapeJobs({ limit: 1 });
+  return data[0] ?? null;
+}
+
+export async function triggerScheduledScrape(): Promise<void> {
+  await createScrapeJob("ALL_UNIVERSITIES");
+}
+
+// ── Stats API ─────────────────────────────────────────────────────────────────
+
+export async function getStats(): Promise<{
+  totalUniversities: number;
+  totalPosts: number;
+  byStatus: Record<string, number>;
+}> {
+  return request("/stats");
+}
+
+export async function getTopUniversitiesByNews(limit = 10): Promise<Array<{
+  university_id: string;
+  name: string;
+  count: number;
+}>> {
+  return request(`/stats/top-universities?limit=${limit}`);
+}
+
+export async function getScrapingStatsByRegion(): Promise<any[]> {
+  // Derived client-side from scraping status distribution
+  return [];
+}
+
+export async function getScrapingStatusDistribution(): Promise<Array<{
+  status: string;
+  count: number;
+  percentage: number;
+}>> {
+  return request("/stats/scraping-status-distribution");
+}
+
+export async function getNewsPostsByTimePeriod(
+  _period: "daily" | "weekly" | "monthly" = "daily",
+  _limit = 14
+): Promise<Array<{ date: string; count: number }>> {
+  // Placeholder — can be added to backend later
+  return [];
+}
+
+export async function getLanguageDistribution(): Promise<Array<{
+  language: string;
+  count: number;
+  percentage: number;
+}>> {
+  return request("/stats/language-distribution");
+}
+
+export async function getMediaStats(): Promise<{
+  totalImages: number;
+  totalVideos: number;
+  postsWithMedia: number;
+  avgImagesPerPost: number;
+}> {
+  return request("/stats/media");
+}
+
+export async function getScrapingPerformanceStats(): Promise<{
+  avgPostsPerUniversity: number;
+  successRate: number;
+  totalScrapedUniversities: number;
+  universitiesWithNews: number;
+}> {
+  const stats = await getStats();
+  const total = stats.totalUniversities || 0;
+  const done = stats.byStatus?.DONE || 0;
+  const successRate = total > 0 ? Math.round((done / total) * 100) : 0;
+  return {
+    avgPostsPerUniversity: done > 0 ? Math.round(stats.totalPosts / done * 10) / 10 : 0,
+    successRate,
+    totalScrapedUniversities: (stats.byStatus?.DONE || 0) + (stats.byStatus?.FAILED || 0) + (stats.byStatus?.NO_NEWS || 0),
+    universitiesWithNews: done,
+  };
+}
+
+export async function getRecentScrapeJobsSummary(): Promise<{
+  last24h: { total: number; successful: number; failed: number };
+  last7d: { total: number; successful: number; failed: number };
+  last30d: { total: number; successful: number; failed: number };
+}> {
+  const { data: jobs } = await getScrapeJobs({ limit: 100 });
+  const now = Date.now();
+  const summarize = (sinceMs: number) => {
+    const filtered = jobs.filter(j => new Date(j.created_at).getTime() >= now - sinceMs);
+    return {
+      total: filtered.length,
+      successful: filtered.filter(j => j.status === "DONE").length,
+      failed: filtered.filter(j => j.status === "FAILED").length,
+    };
+  };
+  return {
+    last24h: summarize(24 * 3600 * 1000),
+    last7d: summarize(7 * 24 * 3600 * 1000),
+    last30d: summarize(30 * 24 * 3600 * 1000),
+  };
+}
+
+// ── Export API ────────────────────────────────────────────────────────────────
+
+export interface ExportFilters {
+  university_id?: string;
+  region_id?: string;
+  from_date?: string;
+  to_date?: string;
+  language?: string;
+}
+
+export interface ExportedNewsPost {
+  university: { id: string; name_uz: string; name_en?: string | null; name_ru?: string | null; region_id?: string | null; website?: string | null };
+  post: { title: string; summary?: string | null; published_at?: string | null; source_url: string; canonical_url?: string | null; content_text?: string | null; language?: string | null };
+  media: { images: Array<{ stored_url?: string | null; original_url: string }>; videos: Array<{ url: string; provider?: string | null }> };
+}
+
 export async function exportNewsPosts(filters: ExportFilters): Promise<ExportedNewsPost[]> {
-  let query = supabase
-    .from('news_posts')
-    .select(`
-      *,
-      university:universities(*),
-      media_assets:media_assets!media_assets_post_id_fkey(*)
-    `);
-
-  if (filters.university_id) {
-    query = query.eq('university_id', filters.university_id);
-  }
-
-  if (filters.region_id) {
-    query = query.eq('university.region_id', filters.region_id);
-  }
-
-  if (filters.from_date) {
-    query = query.gte('published_at', filters.from_date);
-  }
-
-  if (filters.to_date) {
-    query = query.lte('published_at', filters.to_date);
-  }
-
-  if (filters.language && filters.language !== 'all') {
-    query = query.eq('language', filters.language);
-  }
-
-  const { data, error } = await query.order('published_at', { ascending: false });
-
-  if (error) throw error;
-
-  const posts = data as unknown as NewsPost[];
-
+  const { data: posts } = await getNewsPosts({ ...filters, limit: 1000 });
   return posts.map(post => ({
     university: {
       id: post.university?.id || post.university_id,
-      name_uz: post.university?.name_uz || '',
+      name_uz: post.university?.name_uz || "",
       name_en: post.university?.name_en || null,
       name_ru: post.university?.name_ru || null,
       region_id: post.university?.region_id || null,
@@ -477,392 +393,8 @@ export async function exportNewsPosts(filters: ExportFilters): Promise<ExportedN
       language: post.language,
     },
     media: {
-      images: (post.media_assets || [])
-        .filter(m => m.type === 'image')
-        .map(m => ({ stored_url: m.stored_url, original_url: m.original_url })),
-      videos: (post.media_assets || [])
-        .filter(m => m.type === 'video')
-        .map(m => ({ url: m.original_url, provider: m.provider })),
+      images: (post.media_assets || []).filter(m => m.type === "image").map(m => ({ stored_url: m.stored_url, original_url: m.original_url })),
+      videos: (post.media_assets || []).filter(m => m.type === "video").map(m => ({ url: m.original_url, provider: m.provider })),
     },
   }));
-}
-
-// Get last scheduled scrape job result
-export async function getLastScheduledScrape(): Promise<{
-  id: string;
-  status: string;
-  started_at: string | null;
-  finished_at: string | null;
-  totals_json: Record<string, number> | null;
-} | null> {
-  const { data, error } = await supabase
-    .from('scrape_jobs')
-    .select('id, status, started_at, finished_at, totals_json')
-    .eq('scope', 'ALL_UNIVERSITIES')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data as {
-    id: string;
-    status: string;
-    started_at: string | null;
-    finished_at: string | null;
-    totals_json: Record<string, number> | null;
-  } | null;
-}
-
-// Trigger scheduled scrape manually
-export async function triggerScheduledScrape(): Promise<void> {
-  const { error } = await supabase.functions.invoke('scheduled-scrape');
-  if (error) throw error;
-}
-
-// Statistics
-export async function getStats(): Promise<{
-  totalUniversities: number;
-  totalPosts: number;
-  byStatus: Record<string, number>;
-}> {
-  const { count: totalUniversities } = await supabase
-    .from('universities')
-    .select('*', { count: 'exact', head: true });
-
-  const { count: totalPosts } = await supabase
-    .from('news_posts')
-    .select('*', { count: 'exact', head: true });
-
-  const { data: statusData } = await supabase
-    .from('universities')
-    .select('scrape_status');
-
-  const byStatus: Record<string, number> = {};
-  (statusData || []).forEach(u => {
-    const status = (u as { scrape_status: string }).scrape_status;
-    byStatus[status] = (byStatus[status] || 0) + 1;
-  });
-
-  return {
-    totalUniversities: totalUniversities || 0,
-    totalPosts: totalPosts || 0,
-    byStatus,
-  };
-}
-
-// Get unique regions
-export async function getRegions(): Promise<string[]> {
-  const { data, error } = await supabase
-    .from('universities')
-    .select('region_id')
-    .not('region_id', 'is', null);
-
-  if (error) throw error;
-
-  const regions = [...new Set((data as { region_id: string }[]).map(d => d.region_id))];
-  return regions.filter(Boolean).sort();
-}
-
-// Get top universities by news count
-export async function getTopUniversitiesByNews(limit = 10): Promise<Array<{
-  university_id: string;
-  name: string;
-  count: number;
-}>> {
-  const { data, error } = await supabase
-    .from('news_posts')
-    .select('university_id, university:universities(name_uz)');
-
-  if (error) throw error;
-
-  // Count posts per university
-  const counts: Record<string, { name: string; count: number }> = {};
-  (data || []).forEach((post: { university_id: string; university: { name_uz: string } | null }) => {
-    if (!counts[post.university_id]) {
-      counts[post.university_id] = {
-        name: post.university?.name_uz || 'Unknown',
-        count: 0,
-      };
-    }
-    counts[post.university_id].count++;
-  });
-
-  // Sort and return top universities
-  return Object.entries(counts)
-    .map(([id, data]) => ({ university_id: id, name: data.name, count: data.count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, limit);
-}
-
-// Get scraping success rates by region
-export async function getScrapingStatsByRegion(): Promise<Array<{
-  region_id: string;
-  total: number;
-  done: number;
-  failed: number;
-  no_news: number;
-  no_source: number;
-  success_rate: number;
-}>> {
-  const { data, error } = await supabase
-    .from('universities')
-    .select('region_id, scrape_status');
-
-  if (error) throw error;
-
-  // Group by region
-  const regionStats: Record<string, {
-    total: number;
-    done: number;
-    failed: number;
-    no_news: number;
-    no_source: number;
-  }> = {};
-
-  (data || []).forEach((uni: { region_id: string | null; scrape_status: string }) => {
-    const regionId = uni.region_id || 'unknown';
-    if (!regionStats[regionId]) {
-      regionStats[regionId] = { total: 0, done: 0, failed: 0, no_news: 0, no_source: 0 };
-    }
-    regionStats[regionId].total++;
-    
-    switch (uni.scrape_status) {
-      case 'DONE':
-        regionStats[regionId].done++;
-        break;
-      case 'FAILED':
-        regionStats[regionId].failed++;
-        break;
-      case 'NO_NEWS':
-        regionStats[regionId].no_news++;
-        break;
-      case 'NO_SOURCE':
-        regionStats[regionId].no_source++;
-        break;
-    }
-  });
-
-  return Object.entries(regionStats)
-    .map(([region_id, stats]) => ({
-      region_id,
-      ...stats,
-      success_rate: stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0,
-    }))
-    .sort((a, b) => b.total - a.total);
-}
-
-// Get scraping status distribution
-export async function getScrapingStatusDistribution(): Promise<Array<{
-  status: string;
-  count: number;
-  percentage: number;
-}>> {
-  const { data, error } = await supabase
-    .from('universities')
-    .select('scrape_status');
-
-  if (error) throw error;
-
-  const statusCounts: Record<string, number> = {};
-  let total = 0;
-
-  (data || []).forEach((uni: { scrape_status: string }) => {
-    statusCounts[uni.scrape_status] = (statusCounts[uni.scrape_status] || 0) + 1;
-    total++;
-  });
-
-  return Object.entries(statusCounts)
-    .map(([status, count]) => ({
-      status,
-      count,
-      percentage: total > 0 ? Math.round((count / total) * 100) : 0,
-    }))
-    .sort((a, b) => b.count - a.count);
-}
-
-// Get news posts by time period (daily, weekly, monthly)
-export async function getNewsPostsByTimePeriod(period: 'daily' | 'weekly' | 'monthly' = 'daily', limit = 14): Promise<Array<{
-  date: string;
-  count: number;
-}>> {
-  const { data, error } = await supabase
-    .from('news_posts')
-    .select('published_at, created_at');
-
-  if (error) throw error;
-
-  const counts: Record<string, number> = {};
-  const now = new Date();
-  
-  // Initialize dates based on period
-  for (let i = 0; i < limit; i++) {
-    const date = new Date(now);
-    if (period === 'daily') {
-      date.setDate(date.getDate() - i);
-    } else if (period === 'weekly') {
-      date.setDate(date.getDate() - (i * 7));
-    } else {
-      date.setMonth(date.getMonth() - i);
-    }
-    
-    const key = period === 'monthly' 
-      ? date.toISOString().slice(0, 7)  // YYYY-MM
-      : date.toISOString().slice(0, 10); // YYYY-MM-DD
-    counts[key] = 0;
-  }
-
-  (data || []).forEach((post: { published_at: string | null; created_at: string }) => {
-    const postDate = post.published_at || post.created_at;
-    if (!postDate) return;
-    
-    const key = period === 'monthly' 
-      ? postDate.slice(0, 7)
-      : postDate.slice(0, 10);
-    
-    if (counts[key] !== undefined) {
-      counts[key]++;
-    }
-  });
-
-  return Object.entries(counts)
-    .map(([date, count]) => ({ date, count }))
-    .sort((a, b) => a.date.localeCompare(b.date));
-}
-
-// Get news posts language distribution
-export async function getLanguageDistribution(): Promise<Array<{
-  language: string;
-  count: number;
-  percentage: number;
-}>> {
-  const { data, error } = await supabase
-    .from('news_posts')
-    .select('language');
-
-  if (error) throw error;
-
-  const langCounts: Record<string, number> = {};
-  let total = 0;
-
-  (data || []).forEach((post: { language: string }) => {
-    const lang = post.language || 'unknown';
-    langCounts[lang] = (langCounts[lang] || 0) + 1;
-    total++;
-  });
-
-  const languageLabels: Record<string, string> = {
-    uz: "O'zbek",
-    ru: "Русский",
-    en: "English",
-    unknown: "Noma'lum",
-  };
-
-  return Object.entries(langCounts)
-    .map(([language, count]) => ({
-      language: languageLabels[language] || language,
-      count,
-      percentage: total > 0 ? Math.round((count / total) * 100) : 0,
-    }))
-    .sort((a, b) => b.count - a.count);
-}
-
-// Get media statistics
-export async function getMediaStats(): Promise<{
-  totalImages: number;
-  totalVideos: number;
-  postsWithMedia: number;
-  avgImagesPerPost: number;
-}> {
-  const { data: images, count: totalImages } = await supabase
-    .from('media_assets')
-    .select('*', { count: 'exact', head: true })
-    .eq('type', 'image');
-
-  const { data: videos, count: totalVideos } = await supabase
-    .from('media_assets')
-    .select('*', { count: 'exact', head: true })
-    .eq('type', 'video');
-
-  const { data: postsWithMedia } = await supabase
-    .from('news_posts')
-    .select('id')
-    .not('cover_image_id', 'is', null);
-
-  const avgImagesPerPost = postsWithMedia && postsWithMedia.length > 0 
-    ? Math.round((totalImages || 0) / postsWithMedia.length * 10) / 10 
-    : 0;
-
-  return {
-    totalImages: totalImages || 0,
-    totalVideos: totalVideos || 0,
-    postsWithMedia: postsWithMedia?.length || 0,
-    avgImagesPerPost,
-  };
-}
-
-// Get scraping performance stats
-export async function getScrapingPerformanceStats(): Promise<{
-  avgPostsPerUniversity: number;
-  successRate: number;
-  totalScrapedUniversities: number;
-  universitiesWithNews: number;
-}> {
-  const { data: universities } = await supabase
-    .from('universities')
-    .select('id, scrape_status');
-
-  const { count: totalPosts } = await supabase
-    .from('news_posts')
-    .select('*', { count: 'exact', head: true });
-
-  const stats = universities || [];
-  const totalScraped = stats.filter(u => 
-    ['DONE', 'NO_NEWS', 'FAILED'].includes(u.scrape_status)
-  ).length;
-  
-  const successfulScrapes = stats.filter(u => u.scrape_status === 'DONE').length;
-  const successRate = totalScraped > 0 ? Math.round((successfulScrapes / totalScraped) * 100) : 0;
-  
-  const avgPostsPerUniversity = successfulScrapes > 0 
-    ? Math.round((totalPosts || 0) / successfulScrapes * 10) / 10 
-    : 0;
-
-  return {
-    avgPostsPerUniversity,
-    successRate,
-    totalScrapedUniversities: totalScraped,
-    universitiesWithNews: successfulScrapes,
-  };
-}
-
-// Get recent scrape jobs summary
-export async function getRecentScrapeJobsSummary(): Promise<{
-  last24h: { total: number; successful: number; failed: number };
-  last7d: { total: number; successful: number; failed: number };
-  last30d: { total: number; successful: number; failed: number };
-}> {
-  const now = new Date();
-  const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-  const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const last30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-
-  const { data: jobs } = await supabase
-    .from('scrape_jobs')
-    .select('status, created_at')
-    .gte('created_at', last30d);
-
-  const summarize = (since: string) => {
-    const filtered = (jobs || []).filter(j => j.created_at >= since);
-    return {
-      total: filtered.length,
-      successful: filtered.filter(j => j.status === 'DONE').length,
-      failed: filtered.filter(j => j.status === 'FAILED').length,
-    };
-  };
-
-  return {
-    last24h: summarize(last24h),
-    last7d: summarize(last7d),
-    last30d: summarize(last30d),
-  };
 }

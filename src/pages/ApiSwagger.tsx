@@ -2,7 +2,7 @@
  import SwaggerUI from "swagger-ui-react";
  import "swagger-ui-react/swagger-ui.css";
  
- const API_BASE_URL = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/public-api`;
+ const API_BASE_URL = `http://localhost:8000/api/v1`;
  
  const openApiSpec = {
    openapi: "3.0.3",

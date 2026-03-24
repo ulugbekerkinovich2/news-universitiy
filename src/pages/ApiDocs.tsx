@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Code, Book, Zap, Shield, Globe } from "lucide-react";
 
-const API_BASE_URL = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/public-api`;
+const API_BASE_URL = `http://localhost:8000/api/v1`;
 
 const endpoints = [
   {

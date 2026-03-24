@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { supabase } from "@/integrations/supabase/client";
+import { API_BASE } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle, Globe, CheckCircle2 } from "lucide-react";
 
@@ -129,16 +129,13 @@ export function EditWebsiteDialog({
         return;
       }
       
-      const { error } = await supabase
-        .from("universities")
-        .update({ 
-          website: url,
-          scrape_status: url ? "IDLE" : "NO_SOURCE",
-          last_error_message: null,
-        })
-        .eq("id", universityId);
-
-      if (error) throw error;
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(`${API_BASE}/universities/${universityId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ website: url, scrape_status: url ? "IDLE" : "NO_SOURCE", last_error_message: null }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || "Update failed");
 
       toast({
         title: "Website updated",

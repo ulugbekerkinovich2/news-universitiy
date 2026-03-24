@@ -19,7 +19,6 @@ import {
   createScrapeJob
 } from "@/lib/api";
 import type { ScrapeJob, ScrapeJobEvent } from "@/types/database";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { 
@@ -116,65 +115,14 @@ export default function Dashboard() {
     soundEnabledRef.current = soundEnabled;
   }, [soundEnabled]);
 
-  // Real-time subscriptions - separated from other effects
+  // Poll active jobs every 10 seconds (replaces Supabase real-time)
   useEffect(() => {
-    const jobsChannel = supabase
-      .channel('scrape-jobs-dashboard')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'scrape_jobs' },
-        (payload) => {
-          const job = payload.new as ScrapeJob;
-          const previousStatus = previousJobsRef.current[job.id];
-          
-          // Check if job just completed or failed
-          if (previousStatus && previousStatus !== job.status) {
-            if (job.status === 'DONE' && soundEnabledRef.current) {
-              play('success');
-              toast({
-                title: "✅ Scraping tugadi!",
-                description: `Job muvaffaqiyatli yakunlandi`,
-              });
-            } else if (job.status === 'FAILED' && soundEnabledRef.current) {
-              play('error');
-              toast({
-                title: "❌ Scraping xatosi",
-                description: "Job xato bilan tugadi",
-                variant: "destructive",
-              });
-            }
-          }
-          
-          // Update previous status
-          previousJobsRef.current[job.id] = job.status;
-          
-          // Debounce job reloads
-          loadActiveJobs();
-          loadRecentJobs();
-        }
-      )
-      .subscribe();
-
-    const eventsChannel = supabase
-      .channel('scrape-events-dashboard')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'scrape_job_events' },
-        (payload) => {
-          const event = payload.new as ScrapeJobEvent;
-          setJobEvents(prev => ({
-            ...prev,
-            [event.job_id]: [event, ...(prev[event.job_id] || [])].slice(0, 10)
-          }));
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(jobsChannel);
-      supabase.removeChannel(eventsChannel);
-    };
-  }, [play, toast, loadActiveJobs, loadRecentJobs]);
+    const interval = setInterval(() => {
+      loadActiveJobs();
+      loadRecentJobs();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [loadActiveJobs, loadRecentJobs]);
 
   const handleCancel = useCallback(async (jobId: string) => {
     try {

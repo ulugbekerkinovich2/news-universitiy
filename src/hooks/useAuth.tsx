@@ -1,10 +1,19 @@
-import { useState, useEffect, createContext, useContext, ReactNode, useCallback, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import type { User, Session } from "@supabase/supabase-js";
+import { useState, useRef, useCallback, createContext, useContext, useEffect, ReactNode } from "react";
+import { API_BASE } from "@/lib/api";
+
+// Simple JWT-based auth — no Supabase
+
+interface UserInfo {
+  id: string;
+  email: string;
+  display_name?: string | null;
+  role: string;
+  is_active: boolean;
+  created_at: string;
+}
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  user: UserInfo | null;
   isAdmin: boolean;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -15,129 +24,73 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [user, setUser] = useState<UserInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const isCheckingAdmin = useRef(false);
 
-  // Memoized admin check with debounce protection
-  const checkAdminStatus = useCallback(async (userId: string): Promise<boolean> => {
-    if (isCheckingAdmin.current) return isAdmin;
-    isCheckingAdmin.current = true;
-    
-    try {
-      const { data, error } = await supabase.rpc('is_admin');
-      if (error) {
-        console.error('Admin check error:', error);
-        return false;
-      }
-      return data === true;
-    } catch (error) {
-      console.error('Admin check failed:', error);
-      return false;
-    } finally {
-      isCheckingAdmin.current = false;
-    }
-  }, [isAdmin]);
-
+  // On mount, load user from saved token
   useEffect(() => {
-    let isMounted = true;
+    const token = localStorage.getItem("access_token");
+    if (!token) { setIsLoading(false); return; }
+    fetch(`${API_BASE}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setUser(data); })
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
+  }, []);
 
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        if (!isMounted) return;
-        
-        console.log('Auth state change:', event);
-        
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
-        
-        if (newSession?.user) {
-          // Defer admin check to avoid blocking
-          setTimeout(async () => {
-            if (!isMounted) return;
-            const adminStatus = await checkAdminStatus(newSession.user.id);
-            if (isMounted) {
-              setIsAdmin(adminStatus);
-              setIsLoading(false);
-            }
-          }, 0);
-        } else {
-          setIsAdmin(false);
-          setIsLoading(false);
-        }
+  const signIn = useCallback(async (email: string, password: string) => {
+    try {
+      const form = new URLSearchParams();
+      form.append("username", email);
+      form.append("password", password);
+      const res = await fetch(`${API_BASE}/auth/token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: form,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return { error: new Error(err.detail || "Login failed") };
       }
-    );
+      const data = await res.json();
+      localStorage.setItem("access_token", data.access_token);
+      setUser(data.user);
+      return { error: null };
+    } catch (e) {
+      return { error: e as Error };
+    }
+  }, []);
 
-    // Get initial session
-    const initializeAuth = async () => {
-      try {
-        const { data: { session: initialSession }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Get session error:', error);
-          if (isMounted) setIsLoading(false);
-          return;
-        }
-        
-        if (!isMounted) return;
-        
-        if (initialSession?.user) {
-          setSession(initialSession);
-          setUser(initialSession.user);
-          const adminStatus = await checkAdminStatus(initialSession.user.id);
-          if (isMounted) {
-            setIsAdmin(adminStatus);
-          }
-        }
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+  const signUp = useCallback(async (email: string, password: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return { error: new Error(err.detail || "Registration failed") };
       }
-    };
+      // Auto login after signup
+      return signIn(email, password);
+    } catch (e) {
+      return { error: e as Error };
+    }
+  }, [signIn]);
 
-    initializeAuth();
-
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-    };
-  }, [checkAdminStatus]);
-
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error };
-  };
-
-  const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: window.location.origin,
-      },
-    });
-    return { error };
-  };
-
-  const signOut = async () => {
-    await supabase.auth.signOut();
-  };
+  const signOut = useCallback(async () => {
+    localStorage.removeItem("access_token");
+    setUser(null);
+  }, []);
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        session,
-        isAdmin,
+        isAdmin: user?.role === "admin",
         isLoading,
         signIn,
         signUp,
@@ -151,8 +104,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
+  if (context === undefined) throw new Error("useAuth must be used within an AuthProvider");
   return context;
 }

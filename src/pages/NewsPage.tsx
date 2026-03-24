@@ -7,8 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Pagination } from "@/components/common/Pagination";
-import { getUniversities } from "@/lib/api";
-import { supabase } from "@/integrations/supabase/client";
+import { getUniversities, getNewsPosts } from "@/lib/api";
 import type { University } from "@/types/database";
 import { useDebounce } from "@/hooks/use-debounce";
 import { GraduationCap, Search, Newspaper, ExternalLink } from "lucide-react";
@@ -46,18 +45,14 @@ export default function NewsPage() {
         limit: LIMIT,
       });
 
-      // Get news counts for each university
-      const uniIds = data.map((u) => u.id);
-      const { data: countData } = await supabase
-        .from("news_posts")
-        .select("university_id")
-        .in("university_id", uniIds);
-
-      // Count news per university
+      // Get news counts from our API
       const countsMap: Record<string, number> = {};
-      countData?.forEach((post) => {
-        countsMap[post.university_id] = (countsMap[post.university_id] || 0) + 1;
-      });
+      for (const uni of data.slice(0, 20)) {
+        try {
+          const { count } = await getNewsPosts({ university_id: uni.id, limit: 1 });
+          countsMap[uni.id] = count;
+        } catch {}
+      }
 
       // Merge counts with universities and sort by news count
       const withCounts = data.map((uni) => ({
