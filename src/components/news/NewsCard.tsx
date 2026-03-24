@@ -103,10 +103,22 @@ export function NewsCard({ post, showUniversity = true, showDelete = false, onDe
                   {showUniversity && post.university && (
                     <Link
                       to={`/universities/${post.university_id}`}
-                      className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                      className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
                     >
-                      <Building2 className="h-3 w-3" />
-                      {post.university.name_uz}
+                      {post.university.logo_url ? (
+                        <img 
+                          src={post.university.logo_url} 
+                          alt="" 
+                          className="h-3.5 w-3.5 object-contain rounded-sm"
+                          onError={(e) => {
+                            // fallback on error
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <Building2 className="h-3 w-3" />
+                      )}
+                      <span className="truncate">{post.university.name_uz}</span>
                     </Link>
                   )}
 
