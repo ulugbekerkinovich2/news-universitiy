@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { getStats, createScrapeJob } from "@/lib/api";
+import { fmtTime, fmtDateTime } from "@/lib/tz";
 import {
   Activity, RefreshCw, GraduationCap, Newspaper,
   CheckCircle2, XCircle, Clock, Zap, Terminal,
@@ -66,7 +67,7 @@ function formatDuration(startedAt: string | null, finishedAt: string | null): st
 }
 
 function formatTime(ts: string): string {
-  return new Date(ts).toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return fmtTime(ts);
 }
 
 // ── Live terminal log per job ───────────────────────────────────────────────

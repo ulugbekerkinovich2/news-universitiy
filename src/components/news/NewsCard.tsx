@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import type { NewsPost } from "@/types/database";
 import { Calendar, ExternalLink, Building2, Trash2 } from "lucide-react";
-import { format } from "date-fns";
+import { fmtDateShort } from "@/lib/tz";
 import { useState } from "react";
 import { deleteNewsPost } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -96,7 +96,7 @@ export function NewsCard({ post, showUniversity = true, showDelete = false, onDe
                   {post.published_at && (
                     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                       <Calendar className="h-3 w-3" />
-                      {format(new Date(post.published_at), "MMM d, yyyy")}
+                      {fmtDateShort(post.published_at)}
                     </span>
                   )}
 

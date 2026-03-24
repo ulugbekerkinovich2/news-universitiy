@@ -7,7 +7,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { EditWebsiteDialog } from "./EditWebsiteDialog";
 import type { University } from "@/types/database";
 import { ExternalLink, Globe, RefreshCw, MapPin, Pencil, GraduationCap, Image } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { fmtRelative } from "@/lib/tz";
 import { updateUniversityLogoFromWebsite } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -104,7 +104,7 @@ export const UniversityCard = memo(function UniversityCard({
                   
                   {university.last_scraped_at && (
                     <span className="text-[11px] text-muted-foreground">
-                      {formatDistanceToNow(new Date(university.last_scraped_at), { addSuffix: true })}
+                      {fmtRelative(university.last_scraped_at)}
                     </span>
                   )}
                 </div>

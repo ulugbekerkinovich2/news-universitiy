@@ -6,7 +6,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { ScrapeJob, ScrapeJobEvent } from "@/types/database";
 import { XCircle, Activity, CheckCircle2, AlertCircle, Loader2, Search, FileText, Image, Database, GraduationCap } from "lucide-react";
-import { formatDistanceToNow, format } from "date-fns";
+import { fmtTime, fmtRelative } from "@/lib/tz";
 import { cn } from "@/lib/utils";
 
 interface JobProgressProps {
@@ -56,7 +56,7 @@ const EventItem = memo(function EventItem({
     >
       <div className="flex items-center gap-2">
         <span className="text-[10px] text-muted-foreground font-mono">
-          {format(new Date(event.timestamp), "HH:mm:ss")}
+          {fmtTime(event.timestamp)}
         </span>
         <span className={cn(
           "flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border",
@@ -170,7 +170,7 @@ export const JobProgress = memo(function JobProgress({ job, events = [], onCance
                 {job.scope === 'ALL_UNIVERSITIES' ? "Barcha universitetlar" : "Bitta universitet"}
               </CardTitle>
               <p className="text-xs text-muted-foreground">
-                Boshlangan: {formatDistanceToNow(new Date(job.created_at), { addSuffix: true })}
+                Boshlangan: {fmtRelative(job.created_at)}
               </p>
             </div>
           </div>
