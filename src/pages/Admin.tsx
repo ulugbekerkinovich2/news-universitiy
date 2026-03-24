@@ -3,12 +3,13 @@ import { Layout } from "@/components/layout/Layout";
 import { JsonUploader } from "@/components/admin/JsonUploader";
 import { UserManagement } from "@/components/admin/UserManagement";
 import { ApiKeyManagement } from "@/components/admin/ApiKeyManagement";
+import { SchedulerSettings } from "@/components/admin/SchedulerSettings";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { getStats, updateAllUniversityLogos } from "@/lib/api";
-import { GraduationCap, Newspaper, Database, Settings, Users, Upload, Key, Image, Loader2 } from "lucide-react";
+import { GraduationCap, Newspaper, Database, Settings, Users, Upload, Key, Image, Loader2, Timer } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Admin() {
@@ -78,8 +79,12 @@ export default function Admin() {
         )}
 
         {/* Tabs for different admin sections */}
-        <Tabs defaultValue="users" className="space-y-4">
+        <Tabs defaultValue="scheduler" className="space-y-4">
           <TabsList>
+            <TabsTrigger value="scheduler" className="gap-2">
+              <Timer className="h-4 w-4" />
+              <span className="hidden sm:inline">Scheduler</span>
+            </TabsTrigger>
             <TabsTrigger value="users" className="gap-2">
               <Users className="h-4 w-4" />
               <span className="hidden sm:inline">Foydalanuvchilar</span>
@@ -97,6 +102,23 @@ export default function Admin() {
               <span className="hidden sm:inline">Status</span>
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="scheduler">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Timer className="h-5 w-5 text-primary" />
+                  Avtomatik Scraping Sozlamalari
+                </CardTitle>
+                <CardDescription>
+                  Celery Beati har qancha vaqtda barcha universitetlarni scrape qilishi kerakligini belgilang
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <SchedulerSettings />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           <TabsContent value="users">
             <UserManagement />
