@@ -1,8 +1,9 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&family=JetBrains+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @layer base {
   :root {
@@ -70,6 +71,43 @@
     --font-body: 'Inter', -apple-system, sans-serif;
     --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
   }
+
+  /* ── LIGHT MODE ── */
+  :root:not(.dark) {
+    --background: 210 20% 97%;
+    --foreground: 222 26% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 26% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 26% 12%;
+
+    --primary: 226 85% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 15% 92%;
+    --secondary-foreground: 222 20% 30%;
+
+    --muted: 210 15% 94%;
+    --muted-foreground: 215 15% 45%;
+
+    --accent: 172 70% 38%;
+    --accent-foreground: 0 0% 100%;
+
+    --border: 214 20% 88%;
+    --input: 214 20% 92%;
+    --ring: 226 85% 50%;
+
+    --sidebar-background: 222 26% 14%;
+    --sidebar-foreground: 210 20% 92%;
+    --sidebar-primary: 226 85% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 22% 20%;
+    --sidebar-accent-foreground: 210 20% 90%;
+    --sidebar-border: 222 18% 22%;
+    --sidebar-ring: 226 85% 60%;
+  }
 }
 
 @layer base {
@@ -82,6 +120,10 @@
     color-scheme: dark;
   }
 
+  html:not(.dark) {
+    color-scheme: light;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-body);
@@ -90,6 +132,12 @@
       radial-gradient(ellipse 80% 50% at 20% -10%, hsl(226 90% 60% / 0.07) 0%, transparent 60%),
       radial-gradient(ellipse 60% 40% at 80% 110%, hsl(172 80% 45% / 0.05) 0%, transparent 60%);
     background-attachment: fixed;
+  }
+
+  html:not(.dark) body {
+    background-image:
+      radial-gradient(ellipse 80% 50% at 20% -10%, hsl(226 90% 60% / 0.04) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 110%, hsl(172 70% 38% / 0.03) 0%, transparent 60%);
   }
 
   h1, h2, h3, h4 {
@@ -101,17 +149,17 @@
 @layer components {
   /* ── Glassmorphism card ── */
   .glass {
-    background: hsl(222 22% 10% / 0.8);
+    background: hsl(var(--card) / 0.8);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border: 1px solid hsl(222 18% 20% / 0.6);
+    border: 1px solid hsl(var(--border) / 0.8);
   }
 
   .glass-heavy {
-    background: hsl(222 26% 7% / 0.9);
+    background: hsl(var(--background) / 0.92);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border: 1px solid hsl(222 18% 22% / 0.5);
+    border: 1px solid hsl(var(--border) / 0.7);
   }
 
   /* ── Status badges ── */

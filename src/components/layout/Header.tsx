@@ -1,9 +1,10 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { useTheme } from "@/hooks/useTheme";
 import {
   GraduationCap, Newspaper, Settings, BarChart3,
-  Download, LogOut, User, Book, Zap
+  Download, LogOut, User, Book, Zap, Sun, Moon
 } from "lucide-react";
 
 const navItems = [
@@ -19,6 +20,7 @@ export function Header() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isAdmin, signOut } = useAuth();
+  const { theme, toggle } = useTheme();
 
   const handleSignOut = async () => {
     await signOut();
@@ -52,7 +54,6 @@ export function Header() {
             const isActive =
               location.pathname === item.href ||
               (item.href !== "/" && location.pathname.startsWith(item.href));
-
             return (
               <Link
                 key={item.href}
@@ -71,39 +72,54 @@ export function Header() {
           })}
         </nav>
 
-        {/* User */}
-        {user ? (
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="hidden md:flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg bg-white/4 border border-white/6">
-              <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
-                <User className="h-3 w-3 text-primary" />
-              </div>
-              <span className="text-xs text-muted-foreground font-medium">
-                {user.email?.split("@")[0]}
-              </span>
-              {isAdmin && (
-                <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full border border-primary/20 font-medium">
-                  Admin
-                </span>
-              )}
-            </div>
-            <button
-              onClick={handleSignOut}
-              className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs text-muted-foreground hover:text-red-400 hover:bg-red-500/8 transition-colors"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-              <span className="hidden md:inline">Chiqish</span>
-            </button>
-          </div>
-        ) : (
+        {/* Right side: theme toggle + user */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Day / Night toggle */}
           <button
-            onClick={() => navigate("/login")}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/15 border border-primary/25 text-primary text-xs font-medium hover:bg-primary/25 transition-colors"
+            onClick={toggle}
+            title={theme === "dark" ? "Yorug' rejim" : "Qorong'u rejim"}
+            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 border border-white/8 text-muted-foreground hover:text-foreground hover:bg-white/10 transition-all duration-150"
           >
-            <Zap className="h-3.5 w-3.5" />
-            Kirish
+            {theme === "dark"
+              ? <Sun className="h-3.5 w-3.5 text-amber-400" />
+              : <Moon className="h-3.5 w-3.5 text-indigo-400" />
+            }
           </button>
-        )}
+
+          {/* User / login */}
+          {user ? (
+            <div className="flex items-center gap-2">
+              <div className="hidden md:flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg bg-white/4 border border-white/6">
+                <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
+                  <User className="h-3 w-3 text-primary" />
+                </div>
+                <span className="text-xs text-muted-foreground font-medium">
+                  {user.email?.split("@")[0]}
+                </span>
+                {isAdmin && (
+                  <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full border border-primary/20 font-medium">
+                    Admin
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={handleSignOut}
+                className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs text-muted-foreground hover:text-red-400 hover:bg-red-500/8 transition-colors"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                <span className="hidden md:inline">Chiqish</span>
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => navigate("/login")}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/15 border border-primary/25 text-primary text-xs font-medium hover:bg-primary/25 transition-colors"
+            >
+              <Zap className="h-3.5 w-3.5" />
+              Kirish
+            </button>
+          )}
+        </div>
       </div>
     </header>
   );
