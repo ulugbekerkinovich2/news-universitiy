@@ -146,6 +146,28 @@ export async function updateUniversityLogoFromWebsite(universityId: string, webs
   });
 }
 
+export async function uploadUniversityLogo(universityId: string, file: File): Promise<void> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  // We manually use fetch because our standard request wrapper might enforce JSON body headers
+  const token = localStorage.getItem("token");
+  const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
+  
+  const response = await fetch(`${API_BASE}/universities/${universityId}/logo`, {
+    method: "POST",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: "Upload failed" }));
+    throw new Error(err.detail || "Fayl yuklashda xatolik yuz berdi");
+  }
+}
+
 export async function updateAllUniversityLogos(): Promise<{ updated: number; errors: string[] }> {
   const { data } = await getUniversities({ limit: 1000 });
   let updated = 0;

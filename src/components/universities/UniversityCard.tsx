@@ -1,4 +1,4 @@
-import { useState, memo } from "react";
+import { useState, memo, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,10 @@ import { EditWebsiteDialog } from "./EditWebsiteDialog";
 import type { University } from "@/types/database";
 import { ExternalLink, Globe, RefreshCw, MapPin, Pencil, GraduationCap, Image } from "lucide-react";
 import { fmtRelative } from "@/lib/tz";
-import { updateUniversityLogoFromWebsite } from "@/lib/api";
+import { updateUniversityLogoFromWebsite, uploadUniversityLogo } from "@/lib/api";
 import { toast } from "sonner";
+import { Upload } from "lucide-react";
+import { REGION_NAMES } from "@/lib/regions";
 
 interface UniversityCardProps {
   university: University;
@@ -26,17 +28,18 @@ export const UniversityCard = memo(function UniversityCard({
 }: UniversityCardProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [isFetchingLogo, setIsFetchingLogo] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const displayName = university.name_uz;
   const hasSSLError = university.last_error_message?.includes("certificate") || 
                       university.last_error_message?.includes("SSL") ||
                       university.last_error_message?.includes("fetch");
-
+  
   const handleFetchLogo = async () => {
     if (!university.website) {
       toast.error("Website URL mavjud emas");
       return;
     }
-    
     setIsFetchingLogo(true);
     try {
       await updateUniversityLogoFromWebsite(university.id, university.website);
@@ -46,6 +49,27 @@ export const UniversityCard = memo(function UniversityCard({
       toast.error(error instanceof Error ? error.message : "Logo yangilashda xatolik");
     } finally {
       setIsFetchingLogo(false);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Faqat rasm fayllarini yuklash mumkin");
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      await uploadUniversityLogo(university.id, file);
+      toast.success("Logo yuklandi!");
+      onUpdate?.();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Fayl yuklashda xatolik");
+    } finally {
+      setIsUploading(false);
     }
   };
   
@@ -68,16 +92,36 @@ export const UniversityCard = memo(function UniversityCard({
                   <GraduationCap className="h-6 w-6 text-muted-foreground" />
                 </AvatarFallback>
               </Avatar>
-              {university.website && (
+              
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                hidden 
+                accept="image/*" 
+                onChange={handleFileChange} 
+              />
+
+              <div className="absolute inset-0 flex items-center justify-center gap-1.5 rounded-lg bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                {university.website && (
+                  <button
+                    onClick={handleFetchLogo}
+                    disabled={isFetchingLogo || isUploading}
+                    className="p-1 rounded-md hover:bg-white/20 text-white transition-colors"
+                    title="Website'dan logoni olish"
+                  >
+                    <Image className={`h-3.5 w-3.5 ${isFetchingLogo ? 'animate-pulse' : ''}`} />
+                  </button>
+                )}
+                
                 <button
-                  onClick={handleFetchLogo}
-                  disabled={isFetchingLogo}
-                  className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Logo yuklash"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading || isFetchingLogo}
+                  className="p-1 rounded-md hover:bg-white/20 text-white transition-colors"
+                  title="Kompyuterdan rasm yuklash"
                 >
-                  <Image className={`h-4 w-4 text-white ${isFetchingLogo ? 'animate-pulse' : ''}`} />
+                  <Upload className={`h-3.5 w-3.5 ${isUploading ? 'animate-pulse' : ''}`} />
                 </button>
-              )}
+              </div>
             </div>
 
             <div className="flex-1 min-w-0">
@@ -111,10 +155,10 @@ export const UniversityCard = memo(function UniversityCard({
               </div>
 
               <div className="flex items-center gap-3 mt-3">
-                {university.region_id && (
+                {university.region_id && REGION_NAMES[university.region_id] && (
                   <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                     <MapPin className="h-3 w-3" />
-                    {university.region_id}
+                    {REGION_NAMES[university.region_id]}
                   </span>
                 )}
                 

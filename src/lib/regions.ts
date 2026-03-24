@@ -1,0 +1,16 @@
+export const REGION_NAMES: Record<string, string> = {
+  "1": "Toshkent shahri",
+  "2": "Toshkent viloyati",
+  "3": "Andijon viloyati",
+  "4": "Buxoro viloyati",
+  "5": "Farg'ona viloyati",
+  "6": "Jizzax viloyati",
+  "7": "Xorazm viloyati",
+  "8": "Namangan viloyati",
+  "9": "Navoiy viloyati",
+  "10": "Qashqadaryo viloyati",
+  "11": "Qoraqalpog'iston Respublikasi",
+  "12": "Samarqand viloyati",
+  "13": "Sirdaryo viloyati",
+  "14": "Surxondaryo viloyati",
+};

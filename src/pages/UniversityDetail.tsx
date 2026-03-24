@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getUniversity, getNewsPosts, createScrapeJob } from "@/lib/api";
 import type { University, NewsPost } from "@/types/database";
 import { useToast } from "@/hooks/use-toast";
+import { REGION_NAMES } from "@/lib/regions";
 import { 
   ArrowLeft, 
   ExternalLink, 
@@ -143,10 +144,10 @@ export default function UniversityDetail() {
                 )}
 
                 <div className="flex flex-wrap items-center gap-4 mt-4">
-                  {university.region_id && (
+                  {university.region_id && REGION_NAMES[university.region_id] && (
                     <span className="inline-flex items-center gap-1.5 text-sm text-primary-foreground/80">
                       <MapPin className="h-4 w-4" />
-                      {university.region_id}
+                      {REGION_NAMES[university.region_id]}
                     </span>
                   )}
 
