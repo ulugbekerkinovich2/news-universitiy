@@ -64,6 +64,7 @@ export interface ScrapeJob {
   finished_at: string | null;
   totals_json: {
     total_universities?: number;
+    queued?: number;
     completed?: number;
     failed?: number;
     no_news?: number;

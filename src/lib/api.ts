@@ -19,75 +19,17 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json();
 }
 
-// ── Types ────────────────────────────────────────────────────────────────────
+import type { 
+  University, 
+  NewsPost, 
+  MediaAsset, 
+  ScrapeJob, 
+  ScrapeJobEvent, 
+  ScrapeStatus, 
+  JobStatus 
+} from "@/types/database";
 
-export type ScrapeStatus = "IDLE" | "IN_PROGRESS" | "DONE" | "FAILED" | "NO_SOURCE" | "NO_NEWS";
-export type JobStatus = "QUEUED" | "RUNNING" | "DONE" | "FAILED" | "CANCELLED";
-
-export interface University {
-  id: string;
-  region_id?: string | null;
-  name_uz: string;
-  name_en?: string | null;
-  name_ru?: string | null;
-  website?: string | null;
-  logo_url?: string | null;
-  scrape_status: ScrapeStatus;
-  last_scraped_at?: string | null;
-  last_error_message?: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface MediaAsset {
-  id: string;
-  type: "image" | "video";
-  original_url: string;
-  stored_url?: string | null;
-  provider?: string | null;
-}
-
-export interface NewsPost {
-  id: string;
-  university_id: string;
-  title: string;
-  slug: string;
-  summary?: string | null;
-  content_html?: string | null;
-  content_text?: string | null;
-  published_at?: string | null;
-  source_url: string;
-  canonical_url?: string | null;
-  language?: string | null;
-  cover_image_id?: string | null;
-  created_at: string;
-  updated_at: string;
-  university?: University;
-  cover_image?: MediaAsset | null;
-  media_assets?: MediaAsset[];
-}
-
-export interface ScrapeJob {
-  id: string;
-  scope: string;
-  university_id?: string | null;
-  status: JobStatus;
-  started_at?: string | null;
-  finished_at?: string | null;
-  totals_json?: Record<string, number> | null;
-  created_at: string;
-  university?: University;
-}
-
-export interface ScrapeJobEvent {
-  id: string;
-  job_id: string;
-  university_id?: string | null;
-  stage: string;
-  message?: string | null;
-  timestamp: string;
-  counters_json?: Record<string, number> | null;
-}
+export type { ScrapeStatus, JobStatus, University, MediaAsset, NewsPost, ScrapeJob, ScrapeJobEvent };
 
 export interface UniversityImportData {
   id: string;
@@ -96,6 +38,25 @@ export interface UniversityImportData {
   name_ru?: string;
   region_id?: string;
   website?: string;
+}
+
+export interface DashboardInit {
+  stats: {
+    totalUniversities: number;
+    totalPosts: number;
+    byStatus: Record<string, number>;
+  };
+  regions: string[];
+  universities: {
+    data: University[];
+    count: number;
+  };
+}
+
+// ── Dashboard API ────────────────────────────────────────────────────────────
+
+export async function getDashboardInit(): Promise<DashboardInit> {
+  return request("/dashboard/init");
 }
 
 // ── Universities API ─────────────────────────────────────────────────────────
@@ -117,7 +78,7 @@ export async function getUniversities(params?: {
 }
 
 export async function getUniversity(id: string): Promise<University | null> {
-  return request(`/universities/${id}`).catch(() => null);
+  return request<University>(`/universities/${id}`).catch(() => null);
 }
 
 export async function importUniversities(universities: UniversityImportData[]): Promise<{ imported: number; errors: string[] }> {
@@ -186,13 +147,15 @@ export async function updateAllUniversityLogos(): Promise<{ updated: number; err
 }
 
 export async function getRegions(): Promise<string[]> {
-  return request("/universities/regions/list");
+  return request<string[]>("/universities/regions/list");
 }
 
 // ── News API ─────────────────────────────────────────────────────────────────
 
 export async function getNewsPosts(params?: {
   university_id?: string;
+  university_mt_id?: number;
+  slug?: string;
   region_id?: string;
   search?: string;
   language?: string;
@@ -203,6 +166,8 @@ export async function getNewsPosts(params?: {
 }): Promise<{ data: NewsPost[]; count: number }> {
   const q = new URLSearchParams();
   if (params?.university_id) q.set("university_id", params.university_id);
+  if (params?.university_mt_id !== undefined) q.set("university_mt_id", String(params.university_mt_id));
+  if (params?.slug) q.set("slug", params.slug);
   if (params?.region_id) q.set("region_id", params.region_id);
   if (params?.search) q.set("search", params.search);
   if (params?.language) q.set("language", params.language);
@@ -214,7 +179,7 @@ export async function getNewsPosts(params?: {
 }
 
 export async function getNewsPost(id: string): Promise<NewsPost | null> {
-  return request(`/news/${id}`).catch(() => null);
+  return request<NewsPost>(`/news/${id}`).catch(() => null);
 }
 
 export async function deleteNewsPost(id: string): Promise<void> {
@@ -241,7 +206,7 @@ export async function getScrapeJobs(params?: {
 }
 
 export async function getActiveJobs(): Promise<ScrapeJob[]> {
-  return request("/jobs/active");
+  return request<ScrapeJob[]>("/jobs/active");
 }
 
 export async function createScrapeJob(
@@ -249,7 +214,7 @@ export async function createScrapeJob(
   universityId?: string,
   statusFilters?: string[]
 ): Promise<ScrapeJob> {
-  return request("/jobs", {
+  return request<ScrapeJob>("/jobs", {
     method: "POST",
     body: JSON.stringify({ scope, university_id: universityId, status_filters: statusFilters }),
   });
@@ -257,7 +222,7 @@ export async function createScrapeJob(
 
 export async function scrapeFailedUniversities(): Promise<{ queued: number }> {
   const result = await createScrapeJob("ALL_UNIVERSITIES", undefined, ["FAILED"]);
-  return { queued: 1 };
+  return { queued: result.totals_json?.queued || 0 };
 }
 
 export async function cancelScrapeJob(jobId: string): Promise<void> {
@@ -270,7 +235,7 @@ export async function resetStuckUniversities(): Promise<{ updated: number }> {
 }
 
 export async function getScrapeJobEvents(jobId: string): Promise<ScrapeJobEvent[]> {
-  return request(`/jobs/${jobId}/events`);
+  return request<ScrapeJobEvent[]>(`/jobs/${jobId}/events`);
 }
 
 export async function getLastScheduledScrape(): Promise<ScrapeJob | null> {
@@ -289,7 +254,7 @@ export async function getStats(): Promise<{
   totalPosts: number;
   byStatus: Record<string, number>;
 }> {
-  return request("/stats");
+  return request<{ totalUniversities: number; totalPosts: number; byStatus: Record<string, number> }>("/stats");
 }
 
 export async function getTopUniversitiesByNews(limit = 10): Promise<Array<{

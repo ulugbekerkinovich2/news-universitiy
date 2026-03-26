@@ -1,14 +1,14 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { getStats, createScrapeJob } from "@/lib/api";
-import { fmtTime, fmtDateTime } from "@/lib/tz";
+import { fmtTime } from "@/lib/tz";
 import {
   Activity, RefreshCw, GraduationCap, Newspaper,
-  CheckCircle2, XCircle, Clock, Zap, Terminal,
-  TrendingUp, AlertCircle, Play, StopCircle, Wifi
+  CheckCircle2, XCircle, Zap, Terminal,
+  TrendingUp, Play, StopCircle, Wifi
 } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
@@ -85,15 +85,14 @@ function JobTerminal({ job }: { job: LiveJob }) {
 
   return (
     <div className={`rounded-xl border ${cfg.bg} overflow-hidden`}>
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+      <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
         <div className="flex items-center gap-3">
           <div className={`w-2.5 h-2.5 rounded-full ${cfg.dot}`} />
           <div>
-            <p className="text-sm font-semibold text-white leading-none">
+            <p className="text-sm font-semibold text-foreground leading-none">
               {job.university_name || (job.scope === "ALL_UNIVERSITIES" ? "Barcha universitetlar" : `Job ${job.id.slice(0, 8)}`)}
             </p>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               {formatTime(job.created_at)} · {formatDuration(job.started_at, job.finished_at)}
             </p>
           </div>
@@ -108,22 +107,21 @@ function JobTerminal({ job }: { job: LiveJob }) {
         </div>
       </div>
 
-      {/* Terminal body */}
       <div
         ref={terminalRef}
-        className="bg-black/40 font-mono text-xs p-3 h-36 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10"
+        className="h-36 overflow-y-auto bg-background/70 p-3 font-mono text-xs scrollbar-thin scrollbar-thumb-border"
       >
         {job.events.length === 0 ? (
-          <p className="text-gray-600 italic">Voqealar kutilmoqda...</p>
+          <p className="italic text-muted-foreground">Voqealar kutilmoqda...</p>
         ) : (
           job.events.map((ev) => (
             <div key={ev.id} className="flex gap-2 mb-1 group">
-              <span className="text-gray-600 shrink-0">{formatTime(ev.timestamp)}</span>
-              <span className="text-gray-500 shrink-0">{STAGE_ICON[ev.stage] || "·"}</span>
-              <span className={`${job.status === "FAILED" && ev.stage === "DONE" ? "text-red-400" : "text-gray-300"} break-all`}>
+              <span className="shrink-0 text-muted-foreground/80">{formatTime(ev.timestamp)}</span>
+              <span className="shrink-0 text-muted-foreground">{STAGE_ICON[ev.stage] || "·"}</span>
+              <span className={`${job.status === "FAILED" && ev.stage === "DONE" ? "text-red-500 dark:text-red-400" : "text-foreground/80"} break-all`}>
                 {ev.message}
                 {ev.counters_json && Object.keys(ev.counters_json).length > 0 && (
-                  <span className="text-gray-500 ml-2">
+                  <span className="ml-2 text-muted-foreground">
                     {Object.entries(ev.counters_json).map(([k, v]) => `${k}:${v}`).join(" ")}
                   </span>
                 )}
@@ -144,13 +142,13 @@ function JobTerminal({ job }: { job: LiveJob }) {
 // ── Stats card ───────────────────────────────────────────────────────────────
 function StatCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: number; color: string }) {
   return (
-    <div className="rounded-xl border border-white/8 bg-white/3 p-4 flex items-center gap-4">
+    <div className="flex items-center gap-4 rounded-xl border border-border/70 bg-card/80 p-4">
       <div className={`rounded-lg p-2.5 ${color}`}>
-        <Icon className="h-5 w-5 text-white" />
+        <Icon className="h-5 w-5 text-white dark:text-white" />
       </div>
       <div>
-        <p className="text-2xl font-bold text-white tabular-nums">{value.toLocaleString()}</p>
-        <p className="text-xs text-gray-400">{label}</p>
+        <p className="tabular-nums text-2xl font-bold text-foreground">{value.toLocaleString()}</p>
+        <p className="text-xs text-muted-foreground">{label}</p>
       </div>
     </div>
   );
@@ -172,7 +170,7 @@ function UniStatusGrid({ byStatus }: { byStatus: Record<string, number> }) {
       {items.map(({ key, label, color, bg }) => (
         <div key={key} className={`rounded-lg ${bg} p-2 text-center`}>
           <p className={`text-lg font-bold ${color} tabular-nums`}>{byStatus[key] || 0}</p>
-          <p className="text-[10px] text-gray-500 leading-tight mt-0.5">{label}</p>
+          <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">{label}</p>
         </div>
       ))}
     </div>
@@ -187,6 +185,7 @@ export default function Dashboard() {
   const [isScraping, setIsScraping] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isLive, setIsLive] = useState(true);
+  const [viewMode, setViewMode] = useState<"active" | "failed" | "completed">("active");
   const { toast } = useToast();
 
   const token = localStorage.getItem("access_token");
@@ -242,6 +241,12 @@ export default function Dashboard() {
 
   const activeJobs = jobs.filter(j => j.status === "RUNNING" || j.status === "QUEUED");
   const recentJobs = jobs.filter(j => j.status !== "RUNNING" && j.status !== "QUEUED");
+  const failedJobs = recentJobs.filter((job) => job.status === "FAILED" || (job.totals_json?.errors || 0) > 0);
+  const jobsToRender = useMemo(() => {
+    if (viewMode === "active") return activeJobs;
+    if (viewMode === "failed") return failedJobs;
+    return recentJobs;
+  }, [viewMode, activeJobs, failedJobs, recentJobs]);
 
   return (
     <Layout>
@@ -249,15 +254,15 @@ export default function Dashboard() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white flex items-center gap-2">
+            <h1 className="flex items-center gap-2 text-3xl font-bold text-foreground">
               <Activity className="h-7 w-7 text-blue-400" />
               Real-time Monitor
             </h1>
-            <p className="text-sm text-gray-400 mt-1 flex items-center gap-1.5">
+            <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
               <Wifi className="h-3.5 w-3.5 text-emerald-400 animate-pulse" />
               {isLive ? "Jonli — har 3 soniyada yangilanadi" : "To'xtatildi"}
               {lastUpdated && (
-                <span className="text-gray-600">
+                <span className="text-muted-foreground/80">
                   · {lastUpdated.toLocaleTimeString("uz-UZ")}
                 </span>
               )}
@@ -269,7 +274,7 @@ export default function Dashboard() {
               variant="outline"
               size="sm"
               onClick={() => setIsLive(v => !v)}
-              className={isLive ? "border-emerald-500/40 text-emerald-400" : "border-gray-600 text-gray-400"}
+              className={isLive ? "border-emerald-500/40 text-emerald-500 dark:text-emerald-400" : "border-border text-muted-foreground"}
             >
               {isLive ? <Zap className="h-4 w-4 mr-1" /> : <StopCircle className="h-4 w-4 mr-1" />}
               {isLive ? "Jonli" : "To'xtatildi"}
@@ -292,7 +297,7 @@ export default function Dashboard() {
         {isLoading ? (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {Array.from({length: 4}).map((_, i) => (
-              <div key={i} className="h-20 rounded-xl bg-white/3 animate-pulse" />
+              <div key={i} className="h-20 animate-pulse rounded-xl bg-muted/60" />
             ))}
           </div>
         ) : stats && (
@@ -307,51 +312,86 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ACTIVE JOBS — live terminals */}
+        <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="premium-panel p-5">
+            <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Action loop</p>
+            <h2 className="mt-3 text-xl font-semibold text-foreground">Monitoringdan keyingi eng to'g'ri ish</h2>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={() => setViewMode("active")}
+                className={`rounded-2xl border p-4 text-left transition-all ${viewMode === "active" ? "border-primary/30 bg-primary/10" : "border-border/70 bg-background/60"}`}
+              >
+                <p className="text-sm font-medium text-foreground">Faol oqim</p>
+                <p className="mt-1 text-2xl font-semibold text-foreground">{activeJobs.length}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Hozir kuzatiladigan joblar</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("failed")}
+                className={`rounded-2xl border p-4 text-left transition-all ${viewMode === "failed" ? "border-destructive/30 bg-destructive/10" : "border-border/70 bg-background/60"}`}
+              >
+                <p className="text-sm font-medium text-foreground">Xatolar</p>
+                <p className="mt-1 text-2xl font-semibold text-foreground">{failedJobs.length}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Retry yoki source check kerak</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("completed")}
+                className={`rounded-2xl border p-4 text-left transition-all ${viewMode === "completed" ? "border-emerald-500/30 bg-emerald-500/10" : "border-border/70 bg-background/60"}`}
+              >
+                <p className="text-sm font-medium text-foreground">Yakunlangan</p>
+                <p className="mt-1 text-2xl font-semibold text-foreground">{recentJobs.length}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Natijani tekshirish uchun</p>
+              </button>
+            </div>
+          </div>
+
+          <div className="premium-panel p-5">
+            <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Operator guide</p>
+            <div className="mt-4 space-y-3 text-sm text-muted-foreground">
+              <p>1. `Faol oqim` da stuck yoki sekin joblarni kuzating.</p>
+              <p>2. `Xatolar` ko'rinishida source yoki retry talab qiladigan joblarni ajrating.</p>
+              <p>3. `Yakunlangan` bo'limida `0 saved` yoki error count bilan tugaganlarni qayta tekshiring.</p>
+            </div>
+          </div>
+        </div>
+
         <div>
           <div className="flex items-center gap-2 mb-3">
             <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-            <h2 className="font-semibold text-white text-lg">
-              Faol joblar
+            <h2 className="text-lg font-semibold text-foreground">
+              {viewMode === "active" ? "Faol joblar" : viewMode === "failed" ? "Muammoli joblar" : "Yakunlangan joblar"}
             </h2>
-            {activeJobs.length > 0 && (
+            {jobsToRender.length > 0 && (
               <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30">
-                {activeJobs.length}
+                {jobsToRender.length}
               </Badge>
             )}
           </div>
 
-          {activeJobs.length === 0 ? (
-            <div className="rounded-xl border border-white/6 bg-white/2 py-10 text-center">
-              <Terminal className="h-10 w-10 text-gray-600 mx-auto mb-2" />
-              <p className="text-gray-500 text-sm">Hech qanday faol job yo'q</p>
-              <p className="text-gray-600 text-xs mt-1">Yuqoridagi "Barchasini Scrape" tugmasi orqali boshlang</p>
+          {jobsToRender.length === 0 ? (
+            <div className="rounded-xl border border-border/70 bg-card/70 py-10 text-center">
+              <Terminal className="mx-auto mb-2 h-10 w-10 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                {viewMode === "active" ? "Hech qanday faol job yo'q" : viewMode === "failed" ? "Muammoli job topilmadi" : "Yakunlangan job topilmadi"}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground/80">
+                {viewMode === "active" ? 'Yuqoridagi "Barchasini Scrape" tugmasi orqali boshlang' : "Boshqa view'ga o'tib oqimni tekshiring"}
+              </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {activeJobs.map(job => <JobTerminal key={job.id} job={job} />)}
+              {jobsToRender.map(job => <JobTerminal key={job.id} job={job} />)}
             </div>
           )}
         </div>
 
-        {/* RECENT JOBS */}
-        {recentJobs.length > 0 && (
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Clock className="h-4 w-4 text-gray-500" />
-              <h2 className="font-semibold text-gray-300 text-lg">So'nggi joblar</h2>
-            </div>
-            <div className="space-y-2">
-              {recentJobs.map(job => <JobTerminal key={job.id} job={job} />)}
-            </div>
-          </div>
-        )}
-
         {jobs.length === 0 && !isLoading && (
-          <div className="rounded-xl border border-white/6 bg-white/2 py-16 text-center">
-            <TrendingUp className="h-12 w-12 text-gray-700 mx-auto mb-3" />
-            <p className="text-gray-400 font-medium">Hali hech qanday job bo'lmagan</p>
-            <p className="text-gray-600 text-sm mt-1">Scraping boshlash uchun yuqoridagi tugmani bosing</p>
+          <div className="rounded-xl border border-border/70 bg-card/70 py-16 text-center">
+            <TrendingUp className="mx-auto mb-3 h-12 w-12 text-muted-foreground" />
+            <p className="font-medium text-muted-foreground">Hali hech qanday job bo'lmagan</p>
+            <p className="mt-1 text-sm text-muted-foreground/80">Scraping boshlash uchun yuqoridagi tugmani bosing</p>
           </div>
         )}
       </div>

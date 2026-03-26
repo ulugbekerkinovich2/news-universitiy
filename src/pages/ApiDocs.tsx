@@ -16,6 +16,8 @@ const endpoints = [
       { name: "limit", type: "integer", default: "20", description: "Qaytariladigan natijalar soni (max: 100)" },
       { name: "offset", type: "integer", default: "0", description: "Pagination uchun offset" },
       { name: "university_id", type: "string", optional: true, description: "Universitet ID bo'yicha filter" },
+      { name: "slug", type: "string", optional: true, description: "Universitetning mt_slug qiymati bo'yicha yangiliklarni olish" },
+      { name: "university_mt_id", type: "integer", optional: true, description: "Universitetning mt_id qiymati bo'yicha yangiliklarni olish" },
       { name: "language", type: "string", optional: true, description: "Til bo'yicha filter (uz, en, ru)" },
       { name: "from_date", type: "string", optional: true, description: "Boshlanish sanasi (YYYY-MM-DD)" },
       { name: "to_date", type: "string", optional: true, description: "Tugash sanasi (YYYY-MM-DD)" },
@@ -116,11 +118,11 @@ const endpoints = [
 ];
 
 const codeExamples = {
-  curl: `curl -X GET "${API_BASE_URL}/news?limit=10" \\
+  curl: `curl -X GET "${API_BASE_URL}/news?slug=tiiame&limit=10" \\
   -H "x-api-key: YOUR_API_KEY" \\
   -H "Content-Type: application/json"`,
   javascript: `const response = await fetch(
-  "${API_BASE_URL}/news?limit=10",
+  "${API_BASE_URL}/news?slug=tiiame&limit=10",
   {
     headers: {
       "x-api-key": "YOUR_API_KEY",
@@ -134,7 +136,7 @@ console.log(data);`,
 
 response = requests.get(
     "${API_BASE_URL}/news",
-    params={"limit": 10},
+    params={"slug": "tiiame", "limit": 10},
     headers={"x-api-key": "YOUR_API_KEY"}
 )
 data = response.json()

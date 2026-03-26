@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import {
   GraduationCap, Newspaper, Settings, BarChart3,
-  Download, LogOut, User, Book, Zap, Sun, Moon
+  Download, LogOut, User, Book, Zap, Sun, Moon, Sparkles
 } from "lucide-react";
 
 const navItems = [
@@ -32,24 +32,104 @@ export function Header() {
   );
 
   return (
-    <header className="sticky top-0 z-50 w-full glass-heavy border-b border-white/5">
-      <div className="container flex h-16 items-center justify-between">
-        {/* Logo */}
-        <Link to={isAdmin ? "/" : "/news"} className="flex items-center gap-3 group shrink-0">
-          <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 border border-primary/25 group-hover:border-primary/50 transition-colors">
-            <GraduationCap className="h-4.5 w-4.5 text-primary" />
-            <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent border border-background" />
-          </div>
-          <div className="hidden sm:block">
-            <p className="text-sm font-bold text-foreground leading-none tracking-tight">
-              UniHub <span className="text-gradient">UZ</span>
-            </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">News Aggregator</p>
-          </div>
-        </Link>
+    <header className="sticky top-0 z-50 w-full">
+      <div className="container pt-3">
+        <div className="topbar-shell flex min-h-[74px] items-center justify-between gap-4 rounded-[26px] px-4 py-3 sm:px-5">
+          <Link to={isAdmin ? "/" : "/news"} className="group flex shrink-0 items-center gap-3">
+            <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 transition-colors group-hover:border-primary/40">
+              <GraduationCap className="h-5 w-5 text-primary" />
+              <div className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border border-background bg-accent/90">
+                <Sparkles className="h-2.5 w-2.5 text-accent-foreground" />
+              </div>
+            </div>
+            <div className="hidden sm:block">
+              <p className="text-sm font-bold leading-none tracking-tight text-foreground">
+                UniHub <span className="text-gradient">Control</span>
+              </p>
+              <p className="mt-1 text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+                University News System
+              </p>
+            </div>
+          </Link>
 
-        {/* Nav */}
-        <nav className="flex items-center gap-0.5">
+          <nav className="hidden min-w-0 flex-1 justify-center lg:flex">
+            <div className="nav-strip">
+              {visibleNavItems.map((item) => {
+                const isActive =
+                  location.pathname === item.href ||
+                  (item.href !== "/" && location.pathname.startsWith(item.href));
+                return (
+                  <Link
+                    key={item.href}
+                    to={item.href}
+                    className={cn(
+                      "nav-chip",
+                      isActive
+                        ? "nav-chip-active"
+                        : "nav-chip-idle"
+                    )}
+                  >
+                    <item.icon className="h-3.5 w-3.5" />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </nav>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={toggle}
+              title={theme === "dark" ? "Yorug' rejim" : "Qorong'u rejim"}
+              className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border/70 bg-background/70 text-muted-foreground transition-all duration-150 hover:bg-background hover:text-foreground dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+            >
+              {theme === "dark"
+                ? <Sun className="h-4 w-4 text-amber-400" />
+                : <Moon className="h-4 w-4 text-sky-400" />
+              }
+            </button>
+
+            {user ? (
+              <div className="flex items-center gap-2">
+                <div className="hidden items-center gap-3 rounded-2xl border border-border/70 bg-background/70 px-3 py-2 md:flex dark:border-white/10 dark:bg-white/5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/15">
+                    <User className="h-4 w-4 text-primary" />
+                  </div>
+                  <div className="leading-none">
+                    <p className="text-xs font-semibold text-foreground">
+                      {user.email?.split("@")[0]}
+                    </p>
+                    <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                      {isAdmin ? "Admin access" : "Member"}
+                    </p>
+                  </div>
+                  {isAdmin && (
+                    <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary">
+                      Admin
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={handleSignOut}
+                  className="flex items-center gap-1.5 rounded-2xl px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-red-500/8 hover:text-red-400"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  <span className="hidden md:inline">Chiqish</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => navigate("/login")}
+                className="flex items-center gap-1.5 rounded-2xl border border-primary/25 bg-primary/12 px-3.5 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
+              >
+                <Zap className="h-3.5 w-3.5" />
+                Kirish
+              </button>
+            )}
+          </div>
+        </div>
+
+        <nav className="mt-3 flex gap-2 overflow-x-auto pb-1 lg:hidden">
           {visibleNavItems.map((item) => {
             const isActive =
               location.pathname === item.href ||
@@ -59,67 +139,16 @@ export function Header() {
                 key={item.href}
                 to={item.href}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all duration-150",
-                  isActive
-                    ? "bg-primary/15 text-primary border border-primary/20"
-                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                  "nav-chip whitespace-nowrap",
+                  isActive ? "nav-chip-active" : "nav-chip-idle"
                 )}
               >
                 <item.icon className="h-3.5 w-3.5" />
-                <span className="hidden md:inline">{item.label}</span>
+                <span>{item.label}</span>
               </Link>
             );
           })}
         </nav>
-
-        {/* Right side: theme toggle + user */}
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Day / Night toggle */}
-          <button
-            onClick={toggle}
-            title={theme === "dark" ? "Yorug' rejim" : "Qorong'u rejim"}
-            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 border border-white/8 text-muted-foreground hover:text-foreground hover:bg-white/10 transition-all duration-150"
-          >
-            {theme === "dark"
-              ? <Sun className="h-3.5 w-3.5 text-amber-400" />
-              : <Moon className="h-3.5 w-3.5 text-indigo-400" />
-            }
-          </button>
-
-          {/* User / login */}
-          {user ? (
-            <div className="flex items-center gap-2">
-              <div className="hidden md:flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg bg-white/4 border border-white/6">
-                <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
-                  <User className="h-3 w-3 text-primary" />
-                </div>
-                <span className="text-xs text-muted-foreground font-medium">
-                  {user.email?.split("@")[0]}
-                </span>
-                {isAdmin && (
-                  <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full border border-primary/20 font-medium">
-                    Admin
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={handleSignOut}
-                className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs text-muted-foreground hover:text-red-400 hover:bg-red-500/8 transition-colors"
-              >
-                <LogOut className="h-3.5 w-3.5" />
-                <span className="hidden md:inline">Chiqish</span>
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => navigate("/login")}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/15 border border-primary/25 text-primary text-xs font-medium hover:bg-primary/25 transition-colors"
-            >
-              <Zap className="h-3.5 w-3.5" />
-              Kirish
-            </button>
-          )}
-        </div>
       </div>
     </header>
   );

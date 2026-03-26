@@ -6,7 +6,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { EditWebsiteDialog } from "./EditWebsiteDialog";
 import type { University } from "@/types/database";
-import { ExternalLink, Globe, RefreshCw, MapPin, Pencil, GraduationCap, Image } from "lucide-react";
+import { ExternalLink, Globe, RefreshCw, MapPin, Pencil, GraduationCap, Image, ArrowUpRight, ShieldAlert } from "lucide-react";
 import { fmtRelative } from "@/lib/tz";
 import { updateUniversityLogoFromWebsite, uploadUniversityLogo } from "@/lib/api";
 import { toast } from "sonner";
@@ -34,6 +34,32 @@ export const UniversityCard = memo(function UniversityCard({
   const hasSSLError = university.last_error_message?.includes("certificate") || 
                       university.last_error_message?.includes("SSL") ||
                       university.last_error_message?.includes("fetch");
+  const statusMeta = {
+    IDLE: {
+      helper: "Hali scrape qilinmagan. Birinchi ishga tushirish kerak.",
+      primaryLabel: "Scrape boshlash",
+    },
+    IN_PROGRESS: {
+      helper: "Jarayon ishlayapti. Natija chiqishini kuting.",
+      primaryLabel: "Jarayonda",
+    },
+    DONE: {
+      helper: "Kontent topilgan yoki mavjud postlar bilan mos tushgan.",
+      primaryLabel: "Yangiliklarni ko'rish",
+    },
+    FAILED: {
+      helper: hasSSLError ? "URL yoki sertifikat muammosi bor. Avval manbani tekshiring." : "Scrape xato bilan tugagan. Retry yoki source check kerak.",
+      primaryLabel: hasSSLError ? "URL ni tuzatish" : "Retry qilish",
+    },
+    NO_SOURCE: {
+      helper: "Website biriktirilmagan. Avval source URL qo'shing.",
+      primaryLabel: "Website qo'shish",
+    },
+    NO_NEWS: {
+      helper: "Yangilik topilmadi. Source bo'limini tekshirish yoki qayta run qilish kerak.",
+      primaryLabel: "Qayta tekshirish",
+    },
+  }[university.scrape_status];
   
   const handleFetchLogo = async () => {
     if (!university.website) {
@@ -76,11 +102,10 @@ export const UniversityCard = memo(function UniversityCard({
   return (
     <>
       <Card className="card-hover overflow-hidden">
-        <CardContent className="p-5">
+        <CardContent className="p-5 sm:p-6">
           <div className="flex items-start gap-4">
-            {/* University Logo */}
             <div className="relative group">
-              <Avatar className="h-12 w-12 shrink-0 rounded-lg border">
+              <Avatar className="h-14 w-14 shrink-0 rounded-2xl border border-white/10 bg-background/70 shadow-[0_12px_30px_rgba(15,23,42,0.18)]">
                 {university.logo_url ? (
                   <AvatarImage 
                     src={university.logo_url} 
@@ -88,7 +113,7 @@ export const UniversityCard = memo(function UniversityCard({
                     className="object-contain p-1"
                   />
                 ) : null}
-                <AvatarFallback className="rounded-lg bg-muted">
+                <AvatarFallback className="rounded-2xl bg-muted">
                   <GraduationCap className="h-6 w-6 text-muted-foreground" />
                 </AvatarFallback>
               </Avatar>
@@ -101,7 +126,7 @@ export const UniversityCard = memo(function UniversityCard({
                 onChange={handleFileChange} 
               />
 
-              <div className="absolute inset-0 flex items-center justify-center gap-1.5 rounded-lg bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              <div className="absolute inset-0 flex items-center justify-center gap-1.5 rounded-2xl bg-black/60 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                 {university.website && (
                   <button
                     onClick={handleFetchLogo}
@@ -131,7 +156,7 @@ export const UniversityCard = memo(function UniversityCard({
                     to={`/universities/${university.id}`}
                     className="group"
                   >
-                    <h3 className="font-heading text-lg font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-1">
+                    <h3 className="font-heading text-lg font-semibold text-foreground transition-colors line-clamp-2 group-hover:text-primary">
                       {displayName}
                     </h3>
                   </Link>
@@ -154,16 +179,16 @@ export const UniversityCard = memo(function UniversityCard({
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 mt-3">
+              <div className="mt-4 flex flex-wrap items-center gap-3">
                 {university.region_id && REGION_NAMES[university.region_id] && (
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-background/60 px-2.5 py-1 text-xs text-muted-foreground">
                     <MapPin className="h-3 w-3" />
                     {REGION_NAMES[university.region_id]}
                   </span>
                 )}
                 
                 {university.website ? (
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 rounded-full border border-border/70 bg-background/60 px-2.5 py-1">
                     <a
                       href={university.website}
                       target="_blank"
@@ -194,48 +219,67 @@ export const UniversityCard = memo(function UniversityCard({
                   </button>
                 )}
               </div>
+
+              <p className="mt-4 text-sm leading-6 text-muted-foreground">
+                {statusMeta.helper}
+              </p>
+
+              {university.last_error_message && university.scrape_status === 'FAILED' && (
+                <div className="mt-4 flex items-start gap-2 rounded-2xl border border-destructive/20 bg-destructive/10 p-3">
+                  <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                  <p className="text-xs leading-5 text-destructive/90 line-clamp-2">
+                    {university.last_error_message}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="flex items-center justify-between mt-4 pt-4 border-t">
+          <div className="mt-5 flex items-center justify-between border-t border-border/70 pt-4">
             <Link 
               to={`/universities/${university.id}`}
-              className="text-sm font-medium text-primary hover:underline"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
             >
-              View News →
+              Yangiliklarni ko'rish
+              <ArrowUpRight className="h-4 w-4" />
             </Link>
 
             <div className="flex items-center gap-2">
               {(university.scrape_status === 'FAILED' && hasSSLError) && (
                 <Button
-                  variant="outline"
+                  variant="default"
                   size="sm"
                   onClick={() => setEditOpen(true)}
                 >
                   <Pencil className="h-3.5 w-3.5 mr-1.5" />
-                  Fix URL
+                  {statusMeta.primaryLabel}
                 </Button>
               )}
-              
-              {university.scrape_status !== 'NO_SOURCE' && (
+
+              {university.scrape_status === "NO_SOURCE" && (
                 <Button
-                  variant="outline"
+                  variant="default"
+                  size="sm"
+                  onClick={() => setEditOpen(true)}
+                >
+                  <Globe className="h-3.5 w-3.5 mr-1.5" />
+                  {statusMeta.primaryLabel}
+                </Button>
+              )}
+
+              {university.scrape_status !== 'NO_SOURCE' && !((university.scrape_status === 'FAILED') && hasSSLError) && (
+                <Button
+                  variant={university.scrape_status === "FAILED" || university.scrape_status === "NO_NEWS" || university.scrape_status === "IDLE" ? "default" : "outline"}
                   size="sm"
                   onClick={() => onScrape?.(university.id)}
                   disabled={isScraping || university.scrape_status === 'IN_PROGRESS'}
                 >
                   <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isScraping ? 'animate-spin' : ''}`} />
-                  {university.scrape_status === 'FAILED' ? 'Retry' : 'Scrape'}
+                  {statusMeta.primaryLabel}
                 </Button>
               )}
             </div>
           </div>
-
-          {university.last_error_message && university.scrape_status === 'FAILED' && (
-            <p className="mt-3 text-xs text-destructive bg-destructive/10 rounded-md p-2 line-clamp-2">
-              {university.last_error_message}
-            </p>
-          )}
         </CardContent>
       </Card>
 
