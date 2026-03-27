@@ -10,6 +10,7 @@ import { Loader2, GraduationCap } from "lucide-react";
 
 export default function Login() {
   const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
@@ -37,7 +38,7 @@ export default function Login() {
 
     try {
       if (isSignUp) {
-        const { error } = await signUp(email, password);
+        const { error, message } = await signUp(email, password, displayName);
         if (error) {
           toast({
             title: "Ro'yxatdan o'tishda xato",
@@ -46,8 +47,8 @@ export default function Login() {
           });
         } else {
           toast({
-            title: "Muvaffaqiyatli",
-            description: "Ro'yxatdan o'tdingiz! Endi kiring.",
+            title: "So'rov yuborildi",
+            description: message || "Admin tasdiqlagach tizimga kira olasiz.",
           });
           setIsSignUp(false);
         }
@@ -79,12 +80,26 @@ export default function Login() {
             {isSignUp ? "Ro'yxatdan o'tish" : "Kirish"}
           </CardTitle>
           <CardDescription>
-            O'zbekiston universitetlari yangiliklari tizimi
+            {isSignUp
+              ? "Akkaunt admin tasdig'idan keyin faollashadi"
+              : "O'zbekiston universitetlari yangiliklari tizimi"}
           </CardDescription>
         </CardHeader>
         
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            {isSignUp && (
+              <div className="space-y-2">
+                <Label htmlFor="display_name">Ism</Label>
+                <Input
+                  id="display_name"
+                  placeholder="Ismingiz"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  disabled={isLoading}
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input

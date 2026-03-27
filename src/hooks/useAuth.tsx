@@ -9,15 +9,20 @@ interface UserInfo {
   display_name?: string | null;
   role: string;
   is_active: boolean;
+  approval_status: string;
+  permissions: string[];
+  approved_by?: string | null;
+  approved_at?: string | null;
   created_at: string;
 }
 
 interface AuthContextType {
   user: UserInfo | null;
   isAdmin: boolean;
+  hasPermission: (permission: string) => boolean;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, displayName?: string) => Promise<{ error: Error | null; message?: string }>;
   signOut: () => Promise<void>;
 }
 
@@ -63,34 +68,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const signUp = useCallback(async (email: string, password: string) => {
+  const signUp = useCallback(async (email: string, password: string, displayName?: string) => {
     try {
       const res = await fetch(`${API_BASE}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, display_name: displayName }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        return { error: new Error(err.detail || "Registration failed") };
+        return { error: new Error(err.detail || "Registration failed"), message: undefined };
       }
-      // Auto login after signup
-      return signIn(email, password);
+      const data = await res.json();
+      return { error: null, message: data.message };
     } catch (e) {
-      return { error: e as Error };
+      return { error: e as Error, message: undefined };
     }
-  }, [signIn]);
+  }, []);
 
   const signOut = useCallback(async () => {
     localStorage.removeItem("access_token");
     setUser(null);
   }, []);
 
+  const hasPermission = useCallback((permission: string) => {
+    if (!user) return false;
+    if (user.role === "admin") return true;
+    return user.permissions?.includes(permission) ?? false;
+  }, [user]);
+
   return (
     <AuthContext.Provider
       value={{
         user,
         isAdmin: user?.role === "admin",
+        hasPermission,
         isLoading,
         signIn,
         signUp,
