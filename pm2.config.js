@@ -2,13 +2,12 @@ module.exports = {
   apps: [
     {
       name: "univ-frontend",
-      script: "npm",
-      args: "run dev",
+      script: "npx",
+      args: "serve -s dist -l 5173",
       env: {
-        NODE_ENV: "development",
+        NODE_ENV: "production",
       },
       autorestart: true,
-      watch: false,
       max_memory_restart: "1G",
     }
   ],
