@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
+import { AdminSwaggerPanel } from "@/components/admin/AdminSwaggerPanel";
 import { JsonUploader } from "@/components/admin/JsonUploader";
 import { UserManagement } from "@/components/admin/UserManagement";
 import { ApiKeyManagement } from "@/components/admin/ApiKeyManagement";
@@ -26,6 +27,7 @@ export default function Admin() {
   }, [hasPermission]);
 
   const availableTabs = [
+    "swagger",
     hasPermission("manage_settings") && "scheduler",
     hasPermission("manage_users") && "users",
     hasPermission("manage_api_keys") && "api-keys",
@@ -33,7 +35,7 @@ export default function Admin() {
     hasPermission("view_dashboard") && "status",
   ].filter(Boolean) as string[];
 
-  const defaultTab = availableTabs[0] || "status";
+  const defaultTab = availableTabs[0] || "swagger";
 
   const loadStats = async () => {
     try {
@@ -122,6 +124,10 @@ export default function Admin() {
         {/* Tabs for different admin sections */}
         <Tabs defaultValue={defaultTab} className="space-y-4">
           <TabsList>
+            <TabsTrigger value="swagger" className="gap-2">
+              <FileCode2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Swagger</span>
+            </TabsTrigger>
             {hasPermission("manage_settings") && (
               <TabsTrigger value="scheduler" className="gap-2">
                 <Timer className="h-4 w-4" />
@@ -153,6 +159,10 @@ export default function Admin() {
               </TabsTrigger>
             )}
           </TabsList>
+
+          <TabsContent value="swagger">
+            <AdminSwaggerPanel />
+          </TabsContent>
 
           {hasPermission("manage_settings") && <TabsContent value="scheduler">
             <Card>
