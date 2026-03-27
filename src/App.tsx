@@ -46,7 +46,7 @@ const App = () => (
               <Route path="/news/:id" element={<NewsDetail />} />
               <Route path="/login" element={<Login />} />
               <Route path="/api-docs" element={<ApiDocs />} />
-              <Route path="/api-swagger" element={<ApiSwagger />} />
+              <Route path="/api-swagger" element={<ProtectedRoute requireAdmin><ApiSwagger /></ProtectedRoute>} />
 
               {/* Permission protected */}
               <Route path="/" element={<ProtectedRoute requiredPermission="view_universities"><Index /></ProtectedRoute>} />

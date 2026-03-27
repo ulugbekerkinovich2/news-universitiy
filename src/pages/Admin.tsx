@@ -18,7 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 export default function Admin() {
   const [stats, setStats] = useState<{ totalUniversities: number; totalPosts: number; byStatus: Record<string, number> } | null>(null);
   const [isLoadingLogos, setIsLoadingLogos] = useState(false);
-  const { hasPermission } = useAuth();
+  const { hasPermission, isAdmin } = useAuth();
 
   useEffect(() => {
     if (hasPermission("view_dashboard")) {
@@ -74,31 +74,33 @@ export default function Admin() {
           </p>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BookOpen className="h-5 w-5 text-primary" />
-              API Hujjatlari
-            </CardTitle>
-            <CardDescription>
-              Swagger va API docs’ni admin paneldan tez ochish uchun linklar.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-3">
-            <Button asChild variant="default">
-              <Link to="/api-swagger">
-                <FileCode2 className="mr-2 h-4 w-4" />
-                Swagger UI
-              </Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link to="/api-docs">
-                <BookOpen className="mr-2 h-4 w-4" />
-                API Docs
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
+        {isAdmin && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BookOpen className="h-5 w-5 text-primary" />
+                API Hujjatlari
+              </CardTitle>
+              <CardDescription>
+                Swagger va API docs’ni admin paneldan tez ochish uchun linklar.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-3">
+              <Button asChild variant="default">
+                <Link to="/api-swagger">
+                  <FileCode2 className="mr-2 h-4 w-4" />
+                  Swagger UI
+                </Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link to="/api-docs">
+                  <BookOpen className="mr-2 h-4 w-4" />
+                  API Docs
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Quick Stats */}
         {stats && (
