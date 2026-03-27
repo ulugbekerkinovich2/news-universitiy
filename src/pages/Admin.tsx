@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { JsonUploader } from "@/components/admin/JsonUploader";
 import { UserManagement } from "@/components/admin/UserManagement";
@@ -9,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { getStats, updateAllUniversityLogos } from "@/lib/api";
-import { GraduationCap, Newspaper, Database, Settings, Users, Upload, Key, Image, Loader2, Timer } from "lucide-react";
+import { GraduationCap, Newspaper, Database, Settings, Users, Upload, Key, Image, Loader2, Timer, BookOpen, FileCode2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -70,6 +71,32 @@ export default function Admin() {
             Foydalanuvchilar va universitetlarni boshqarish
           </p>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-primary" />
+              API Hujjatlari
+            </CardTitle>
+            <CardDescription>
+              Swagger va API docs’ni admin paneldan tez ochish uchun linklar.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-3">
+            <Button asChild variant="default">
+              <Link to="/api-swagger">
+                <FileCode2 className="mr-2 h-4 w-4" />
+                Swagger UI
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to="/api-docs">
+                <BookOpen className="mr-2 h-4 w-4" />
+                API Docs
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
 
         {/* Quick Stats */}
         {stats && (
