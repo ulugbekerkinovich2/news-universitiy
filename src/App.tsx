@@ -48,13 +48,20 @@ const App = () => (
               <Route path="/api-docs" element={<ApiDocs />} />
               <Route path="/api-swagger" element={<ApiSwagger />} />
 
-              {/* Admin protected */}
-              <Route path="/" element={<ProtectedRoute requireAdmin><Index /></ProtectedRoute>} />
-              <Route path="/universities" element={<ProtectedRoute requireAdmin><Index /></ProtectedRoute>} />
-              <Route path="/universities/:id" element={<ProtectedRoute requireAdmin><UniversityDetail /></ProtectedRoute>} />
-              <Route path="/dashboard" element={<ProtectedRoute requireAdmin><Dashboard /></ProtectedRoute>} />
-              <Route path="/admin" element={<ProtectedRoute requireAdmin><Admin /></ProtectedRoute>} />
-              <Route path="/export" element={<ProtectedRoute requireAdmin><Export /></ProtectedRoute>} />
+              {/* Permission protected */}
+              <Route path="/" element={<ProtectedRoute requiredPermission="view_universities"><Index /></ProtectedRoute>} />
+              <Route path="/universities" element={<ProtectedRoute requiredPermission="view_universities"><Index /></ProtectedRoute>} />
+              <Route path="/universities/:id" element={<ProtectedRoute requiredPermission="view_universities"><UniversityDetail /></ProtectedRoute>} />
+              <Route path="/dashboard" element={<ProtectedRoute requiredPermission="view_dashboard"><Dashboard /></ProtectedRoute>} />
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute requiredAnyPermission={["manage_users", "manage_api_keys", "manage_settings", "manage_universities"]}>
+                    <Admin />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/export" element={<ProtectedRoute requiredPermission="export_data"><Export /></ProtectedRoute>} />
 
               <Route path="*" element={<NotFound />} />
             </Routes>

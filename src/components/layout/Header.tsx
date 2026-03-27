@@ -8,18 +8,18 @@ import {
 } from "lucide-react";
 
 const navItems = [
-  { href: "/", label: "Universities", icon: GraduationCap, requireAdmin: true },
-  { href: "/news", label: "News", icon: Newspaper, requireAdmin: false },
-  { href: "/api-docs", label: "API", icon: Book, requireAdmin: false },
-  { href: "/dashboard", label: "Dashboard", icon: BarChart3, requireAdmin: true },
-  { href: "/admin", label: "Admin", icon: Settings, requireAdmin: true },
-  { href: "/export", label: "Export", icon: Download, requireAdmin: true },
+  { href: "/", label: "Universities", icon: GraduationCap, permission: "view_universities" },
+  { href: "/news", label: "News", icon: Newspaper },
+  { href: "/api-docs", label: "API", icon: Book },
+  { href: "/dashboard", label: "Dashboard", icon: BarChart3, permission: "view_dashboard" },
+  { href: "/admin", label: "Admin", icon: Settings, anyPermissions: ["manage_users", "manage_api_keys", "manage_settings", "manage_universities"] },
+  { href: "/export", label: "Export", icon: Download, permission: "export_data" },
 ];
 
 export function Header() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, isAdmin, hasPermission, hasAnyPermission, signOut } = useAuth();
   const { theme, toggle } = useTheme();
 
   const handleSignOut = async () => {
@@ -28,14 +28,18 @@ export function Header() {
   };
 
   const visibleNavItems = navItems.filter(
-    (item) => !item.requireAdmin || isAdmin
+    (item) => {
+      if (item.permission) return hasPermission(item.permission);
+      if (item.anyPermissions) return hasAnyPermission(item.anyPermissions);
+      return true;
+    }
   );
 
   return (
     <header className="sticky top-0 z-50 w-full">
       <div className="container pt-3">
         <div className="topbar-shell flex min-h-[74px] items-center justify-between gap-4 rounded-[26px] px-4 py-3 sm:px-5">
-          <Link to={isAdmin ? "/" : "/news"} className="group flex shrink-0 items-center gap-3">
+          <Link to={hasPermission("view_universities") ? "/" : "/news"} className="group flex shrink-0 items-center gap-3">
             <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 transition-colors group-hover:border-primary/40">
               <GraduationCap className="h-5 w-5 text-primary" />
               <div className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border border-background bg-accent/90">
@@ -100,7 +104,7 @@ export function Header() {
                       {user.email?.split("@")[0]}
                     </p>
                     <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                      {isAdmin ? "Admin access" : "Member"}
+                      {isAdmin ? "Admin access" : "Limited access"}
                     </p>
                   </div>
                   {isAdmin && (

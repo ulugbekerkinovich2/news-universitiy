@@ -20,6 +20,7 @@ interface AuthContextType {
   user: UserInfo | null;
   isAdmin: boolean;
   hasPermission: (permission: string) => boolean;
+  hasAnyPermission: (permissions: string[]) => boolean;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, displayName?: string) => Promise<{ error: Error | null; message?: string }>;
@@ -97,12 +98,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return user.permissions?.includes(permission) ?? false;
   }, [user]);
 
+  const hasAnyPermission = useCallback((permissions: string[]) => {
+    if (!user) return false;
+    if (user.role === "admin") return true;
+    return permissions.some((permission) => user.permissions?.includes(permission));
+  }, [user]);
+
   return (
     <AuthContext.Provider
       value={{
         user,
         isAdmin: user?.role === "admin",
         hasPermission,
+        hasAnyPermission,
         isLoading,
         signIn,
         signUp,

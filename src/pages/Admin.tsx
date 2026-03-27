@@ -11,14 +11,28 @@ import { Button } from "@/components/ui/button";
 import { getStats, updateAllUniversityLogos } from "@/lib/api";
 import { GraduationCap, Newspaper, Database, Settings, Users, Upload, Key, Image, Loader2, Timer } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Admin() {
   const [stats, setStats] = useState<{ totalUniversities: number; totalPosts: number; byStatus: Record<string, number> } | null>(null);
   const [isLoadingLogos, setIsLoadingLogos] = useState(false);
+  const { hasPermission } = useAuth();
 
   useEffect(() => {
-    loadStats();
-  }, []);
+    if (hasPermission("view_dashboard")) {
+      loadStats();
+    }
+  }, [hasPermission]);
+
+  const availableTabs = [
+    hasPermission("manage_settings") && "scheduler",
+    hasPermission("manage_users") && "users",
+    hasPermission("manage_api_keys") && "api-keys",
+    hasPermission("manage_universities") && "import",
+    hasPermission("view_dashboard") && "status",
+  ].filter(Boolean) as string[];
+
+  const defaultTab = availableTabs[0] || "status";
 
   const loadStats = async () => {
     try {
@@ -79,31 +93,41 @@ export default function Admin() {
         )}
 
         {/* Tabs for different admin sections */}
-        <Tabs defaultValue="scheduler" className="space-y-4">
+        <Tabs defaultValue={defaultTab} className="space-y-4">
           <TabsList>
-            <TabsTrigger value="scheduler" className="gap-2">
-              <Timer className="h-4 w-4" />
-              <span className="hidden sm:inline">Scheduler</span>
-            </TabsTrigger>
-            <TabsTrigger value="users" className="gap-2">
-              <Users className="h-4 w-4" />
-              <span className="hidden sm:inline">Foydalanuvchilar</span>
-            </TabsTrigger>
-            <TabsTrigger value="api-keys" className="gap-2">
-              <Key className="h-4 w-4" />
-              <span className="hidden sm:inline">API</span>
-            </TabsTrigger>
-            <TabsTrigger value="import" className="gap-2">
-              <Upload className="h-4 w-4" />
-              <span className="hidden sm:inline">Import</span>
-            </TabsTrigger>
-            <TabsTrigger value="status" className="gap-2">
-              <Database className="h-4 w-4" />
-              <span className="hidden sm:inline">Status</span>
-            </TabsTrigger>
+            {hasPermission("manage_settings") && (
+              <TabsTrigger value="scheduler" className="gap-2">
+                <Timer className="h-4 w-4" />
+                <span className="hidden sm:inline">Scheduler</span>
+              </TabsTrigger>
+            )}
+            {hasPermission("manage_users") && (
+              <TabsTrigger value="users" className="gap-2">
+                <Users className="h-4 w-4" />
+                <span className="hidden sm:inline">Foydalanuvchilar</span>
+              </TabsTrigger>
+            )}
+            {hasPermission("manage_api_keys") && (
+              <TabsTrigger value="api-keys" className="gap-2">
+                <Key className="h-4 w-4" />
+                <span className="hidden sm:inline">API</span>
+              </TabsTrigger>
+            )}
+            {hasPermission("manage_universities") && (
+              <TabsTrigger value="import" className="gap-2">
+                <Upload className="h-4 w-4" />
+                <span className="hidden sm:inline">Import</span>
+              </TabsTrigger>
+            )}
+            {hasPermission("view_dashboard") && (
+              <TabsTrigger value="status" className="gap-2">
+                <Database className="h-4 w-4" />
+                <span className="hidden sm:inline">Status</span>
+              </TabsTrigger>
+            )}
           </TabsList>
 
-          <TabsContent value="scheduler">
+          {hasPermission("manage_settings") && <TabsContent value="scheduler">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -118,17 +142,17 @@ export default function Admin() {
                 <SchedulerSettings />
               </CardContent>
             </Card>
-          </TabsContent>
+          </TabsContent>}
 
-          <TabsContent value="users">
+          {hasPermission("manage_users") && <TabsContent value="users">
             <UserManagement />
-          </TabsContent>
+          </TabsContent>}
 
-          <TabsContent value="api-keys">
+          {hasPermission("manage_api_keys") && <TabsContent value="api-keys">
             <ApiKeyManagement />
-          </TabsContent>
+          </TabsContent>}
 
-          <TabsContent value="import">
+          {hasPermission("manage_universities") && <TabsContent value="import">
             <div className="space-y-4">
               <JsonUploader onImportComplete={loadStats} />
               
@@ -167,9 +191,9 @@ export default function Admin() {
                 </CardContent>
               </Card>
             </div>
-          </TabsContent>
+          </TabsContent>}
 
-          <TabsContent value="status">
+          {hasPermission("view_dashboard") && <TabsContent value="status">
             <Card>
               <CardHeader>
                 <CardTitle>Status Overview</CardTitle>
@@ -193,7 +217,7 @@ export default function Admin() {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
+          </TabsContent>}
         </Tabs>
       </div>
     </Layout>

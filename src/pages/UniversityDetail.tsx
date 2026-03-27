@@ -21,6 +21,7 @@ import {
   Calendar
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useAuth } from "@/hooks/useAuth";
 
 const LIMIT = 10;
 
@@ -33,6 +34,8 @@ export default function UniversityDetail() {
   const [isLoading, setIsLoading] = useState(true);
   const [isScraping, setIsScraping] = useState(false);
   const { toast } = useToast();
+  const { hasPermission } = useAuth();
+  const canManageScraping = hasPermission("manage_scraping");
 
   useEffect(() => {
     if (id) {
@@ -175,7 +178,7 @@ export default function UniversityDetail() {
 
               <div className="flex items-center gap-3">
                 <StatusBadge status={university.scrape_status} />
-                {university.scrape_status !== 'NO_SOURCE' && (
+                {canManageScraping && university.scrape_status !== 'NO_SOURCE' && (
                   <Button
                     onClick={handleScrape}
                     disabled={isScraping || university.scrape_status === 'IN_PROGRESS'}
@@ -216,7 +219,7 @@ export default function UniversityDetail() {
             title="No news posts yet"
             description="This university doesn't have any news posts. Try scraping to collect news."
             action={
-              university?.scrape_status !== 'NO_SOURCE' && (
+              canManageScraping && university?.scrape_status !== 'NO_SOURCE' && (
                 <Button onClick={handleScrape} disabled={isScraping}>
                   <RefreshCw className={`h-4 w-4 mr-2 ${isScraping ? 'animate-spin' : ''}`} />
                   Scrape News

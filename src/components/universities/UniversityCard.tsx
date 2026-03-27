@@ -12,6 +12,7 @@ import { updateUniversityLogoFromWebsite, uploadUniversityLogo } from "@/lib/api
 import { toast } from "sonner";
 import { Upload } from "lucide-react";
 import { REGION_NAMES } from "@/lib/regions";
+import { useAuth } from "@/hooks/useAuth";
 
 interface UniversityCardProps {
   university: University;
@@ -26,6 +27,7 @@ export const UniversityCard = memo(function UniversityCard({
   isScraping, 
   onUpdate 
 }: UniversityCardProps) {
+  const { hasPermission } = useAuth();
   const [editOpen, setEditOpen] = useState(false);
   const [isFetchingLogo, setIsFetchingLogo] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -60,6 +62,8 @@ export const UniversityCard = memo(function UniversityCard({
       primaryLabel: "Qayta tekshirish",
     },
   }[university.scrape_status];
+  const canManageUniversities = hasPermission("manage_universities");
+  const canManageScraping = hasPermission("manage_scraping");
   
   const handleFetchLogo = async () => {
     if (!university.website) {
@@ -118,35 +122,39 @@ export const UniversityCard = memo(function UniversityCard({
                 </AvatarFallback>
               </Avatar>
               
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                hidden 
-                accept="image/*" 
-                onChange={handleFileChange} 
-              />
+              {canManageUniversities && (
+                <>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    hidden 
+                    accept="image/*" 
+                    onChange={handleFileChange} 
+                  />
 
-              <div className="absolute inset-0 flex items-center justify-center gap-1.5 rounded-2xl bg-black/60 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                {university.website && (
-                  <button
-                    onClick={handleFetchLogo}
-                    disabled={isFetchingLogo || isUploading}
-                    className="p-1 rounded-md hover:bg-white/20 text-white transition-colors"
-                    title="Website'dan logoni olish"
-                  >
-                    <Image className={`h-3.5 w-3.5 ${isFetchingLogo ? 'animate-pulse' : ''}`} />
-                  </button>
-                )}
-                
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploading || isFetchingLogo}
-                  className="p-1 rounded-md hover:bg-white/20 text-white transition-colors"
-                  title="Kompyuterdan rasm yuklash"
-                >
-                  <Upload className={`h-3.5 w-3.5 ${isUploading ? 'animate-pulse' : ''}`} />
-                </button>
-              </div>
+                  <div className="absolute inset-0 flex items-center justify-center gap-1.5 rounded-2xl bg-black/60 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                    {university.website && (
+                      <button
+                        onClick={handleFetchLogo}
+                        disabled={isFetchingLogo || isUploading}
+                        className="p-1 rounded-md hover:bg-white/20 text-white transition-colors"
+                        title="Website'dan logoni olish"
+                      >
+                        <Image className={`h-3.5 w-3.5 ${isFetchingLogo ? 'animate-pulse' : ''}`} />
+                      </button>
+                    )}
+                    
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading || isFetchingLogo}
+                      className="p-1 rounded-md hover:bg-white/20 text-white transition-colors"
+                      title="Kompyuterdan rasm yuklash"
+                    >
+                      <Upload className={`h-3.5 w-3.5 ${isUploading ? 'animate-pulse' : ''}`} />
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="flex-1 min-w-0">
@@ -201,15 +209,17 @@ export const UniversityCard = memo(function UniversityCard({
                       </span>
                       <ExternalLink className="h-3 w-3" />
                     </a>
-                    <button
-                      onClick={() => setEditOpen(true)}
-                      className="p-1 rounded hover:bg-muted transition-colors"
-                      title="Edit website"
-                    >
-                      <Pencil className="h-3 w-3 text-muted-foreground" />
-                    </button>
+                    {canManageUniversities && (
+                      <button
+                        onClick={() => setEditOpen(true)}
+                        className="p-1 rounded hover:bg-muted transition-colors"
+                        title="Edit website"
+                      >
+                        <Pencil className="h-3 w-3 text-muted-foreground" />
+                      </button>
+                    )}
                   </div>
-                ) : (
+                ) : canManageUniversities ? (
                   <button
                     onClick={() => setEditOpen(true)}
                     className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
@@ -217,7 +227,7 @@ export const UniversityCard = memo(function UniversityCard({
                     <Globe className="h-3 w-3" />
                     Add website
                   </button>
-                )}
+                ) : null}
               </div>
 
               <p className="mt-4 text-sm leading-6 text-muted-foreground">
@@ -245,7 +255,7 @@ export const UniversityCard = memo(function UniversityCard({
             </Link>
 
             <div className="flex items-center gap-2">
-              {(university.scrape_status === 'FAILED' && hasSSLError) && (
+              {canManageUniversities && (university.scrape_status === 'FAILED' && hasSSLError) && (
                 <Button
                   variant="default"
                   size="sm"
@@ -256,7 +266,7 @@ export const UniversityCard = memo(function UniversityCard({
                 </Button>
               )}
 
-              {university.scrape_status === "NO_SOURCE" && (
+              {canManageUniversities && university.scrape_status === "NO_SOURCE" && (
                 <Button
                   variant="default"
                   size="sm"
@@ -267,7 +277,7 @@ export const UniversityCard = memo(function UniversityCard({
                 </Button>
               )}
 
-              {university.scrape_status !== 'NO_SOURCE' && !((university.scrape_status === 'FAILED') && hasSSLError) && (
+              {canManageScraping && university.scrape_status !== 'NO_SOURCE' && !((university.scrape_status === 'FAILED') && hasSSLError) && (
                 <Button
                   variant={university.scrape_status === "FAILED" || university.scrape_status === "NO_NEWS" || university.scrape_status === "IDLE" ? "default" : "outline"}
                   size="sm"
@@ -283,15 +293,17 @@ export const UniversityCard = memo(function UniversityCard({
         </CardContent>
       </Card>
 
-      <EditWebsiteDialog
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        universityId={university.id}
-        universityName={displayName}
-        currentWebsite={university.website}
-        errorMessage={university.scrape_status === 'FAILED' ? university.last_error_message : null}
-        onSuccess={() => onUpdate?.()}
-      />
+      {canManageUniversities && (
+        <EditWebsiteDialog
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          universityId={university.id}
+          universityName={displayName}
+          currentWebsite={university.website}
+          errorMessage={university.scrape_status === 'FAILED' ? university.last_error_message : null}
+          onSuccess={() => onUpdate?.()}
+        />
+      )}
     </>
   );
 });

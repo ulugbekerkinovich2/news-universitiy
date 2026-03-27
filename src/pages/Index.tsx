@@ -13,6 +13,7 @@ import type { University, ScrapeStatus } from "@/types/database";
 import { useToast } from "@/hooks/use-toast";
 import { GraduationCap, Newspaper, CheckCircle2, AlertTriangle, Building2, ArrowRight, Sparkles, TimerReset, Activity } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useAuth } from "@/hooks/useAuth";
 
 const LIMIT = 12;
 
@@ -34,6 +35,7 @@ export default function Index() {
 
   const debouncedSearch = useDebounce(search, 300);
   const { toast } = useToast();
+  const { hasPermission } = useAuth();
 
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
@@ -188,6 +190,7 @@ export default function Index() {
   const healthyCount = stats?.byStatus.DONE || 0;
   const queuedEstimate = (stats?.byStatus.IDLE || 0) + (stats?.byStatus.FAILED || 0) + (stats?.byStatus.NO_NEWS || 0);
   const coverageRate = stats?.totalUniversities ? Math.round((healthyCount / stats.totalUniversities) * 100) : 0;
+  const canManageScraping = hasPermission("manage_scraping");
 
   const statsSection = useMemo(() => {
     if (!stats) return null;
@@ -300,20 +303,24 @@ export default function Index() {
               </div>
 
               <div className="flex flex-wrap gap-3">
-                <BulkScrapeDialog
-                  statusCounts={stats?.byStatus}
-                  onScrape={handleBulkScrape}
-                  isScraping={isBulkScraping}
-                />
-                <Button
-                  variant="outline"
-                  onClick={handleScrapeAllFailed}
-                  disabled={isScrapingFailed || needAttentionCount === 0}
-                  className="border-border/70 bg-background/55 text-foreground hover:bg-background dark:border-white/15 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
-                >
-                  <TimerReset className={`mr-2 h-4 w-4 ${isScrapingFailed ? "animate-spin" : ""}`} />
-                  Xatolarni qayta scrape
-                </Button>
+                {canManageScraping && (
+                  <>
+                    <BulkScrapeDialog
+                      statusCounts={stats?.byStatus}
+                      onScrape={handleBulkScrape}
+                      isScraping={isBulkScraping}
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={handleScrapeAllFailed}
+                      disabled={isScrapingFailed || needAttentionCount === 0}
+                      className="border-border/70 bg-background/55 text-foreground hover:bg-background dark:border-white/15 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+                    >
+                      <TimerReset className={`mr-2 h-4 w-4 ${isScrapingFailed ? "animate-spin" : ""}`} />
+                      Xatolarni qayta scrape
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
 

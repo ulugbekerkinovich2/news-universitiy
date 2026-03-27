@@ -6,10 +6,17 @@ import { useEffect, useState } from "react";
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requireAdmin?: boolean;
+  requiredPermission?: string;
+  requiredAnyPermission?: string[];
 }
 
-export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
-  const { user, isAdmin, isLoading } = useAuth();
+export function ProtectedRoute({
+  children,
+  requireAdmin = false,
+  requiredPermission,
+  requiredAnyPermission,
+}: ProtectedRouteProps) {
+  const { user, isAdmin, isLoading, hasPermission, hasAnyPermission } = useAuth();
   const location = useLocation();
   const [showLoader, setShowLoader] = useState(true);
 
@@ -43,6 +50,32 @@ export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRout
           <h1 className="text-2xl font-bold text-destructive">Ruxsat yo'q</h1>
           <p className="text-muted-foreground mt-2">
             Bu sahifaga faqat adminlar kira oladi
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (requiredPermission && !hasPermission(requiredPermission)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-destructive">Ruxsat yo'q</h1>
+          <p className="text-muted-foreground mt-2">
+            Bu bo'lim uchun sizga alohida permission kerak
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (requiredAnyPermission && !hasAnyPermission(requiredAnyPermission)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-destructive">Ruxsat yo'q</h1>
+          <p className="text-muted-foreground mt-2">
+            Bu bo'limni ko'rish uchun yetarli ruxsat topilmadi
           </p>
         </div>
       </div>
