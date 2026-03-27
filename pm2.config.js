@@ -1,13 +1,14 @@
-export const apps = [
-  {
-    name: "univ-frontend",
-    script: "npm",
-    args: "run dev -- --host",
-    env: {
-      NODE_ENV: "development",
+module.exports = {
+  apps: [
+    {
+      name: "univ-frontend",
+      cwd: "/var/www/workers/news-universitiy",
+      script: "npm",
+      args: "run dev -- --host",
+      interpreter: "none",
+      env: {
+        NODE_ENV: "development",
+      },
     },
-    autorestart: true,
-    watch: false,
-    max_memory_restart: "1G",
-  }
-];
+  ],
+};
