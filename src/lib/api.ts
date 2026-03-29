@@ -227,12 +227,14 @@ export async function syncMentalabaUniversities(): Promise<{ count: number; matc
 export async function getMentalabaQueue(params?: {
   syndication_status?: string;
   eligible_only?: boolean;
+  university_id?: string;
   page?: number;
   limit?: number;
 }): Promise<{ data: MentalabaQueueItem[]; count: number }> {
   const q = new URLSearchParams();
   if (params?.syndication_status) q.set("syndication_status", params.syndication_status);
   if (params?.eligible_only !== undefined) q.set("eligible_only", String(params.eligible_only));
+  if (params?.university_id) q.set("university_id", params.university_id);
   if (params?.page) q.set("page", String(params.page));
   if (params?.limit) q.set("limit", String(params.limit));
   return request(`/mentalaba/news-queue?${q}`);
@@ -247,8 +249,10 @@ export async function sendNewsToMentalaba(postId: string): Promise<{
   return request(`/mentalaba/news/${postId}/send`, { method: "POST" });
 }
 
-export async function sendMentalabaPending(limit = 20): Promise<{ processed: number; exported: number; failed: number }> {
-  return request(`/mentalaba/news/send-bulk?limit=${limit}`, { method: "POST" });
+export async function sendMentalabaPending(limit = 20, university_id?: string): Promise<{ processed: number; exported: number; failed: number }> {
+  const q = new URLSearchParams({ limit: String(limit) });
+  if (university_id) q.set("university_id", university_id);
+  return request(`/mentalaba/news/send-bulk?${q}`, { method: "POST" });
 }
 
 export async function updateMentalabaQueueStatus(postId: string, syndication_status: string): Promise<NewsPost> {

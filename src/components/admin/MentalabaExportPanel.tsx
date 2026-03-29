@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  getUniversities,
   getMentalabaOverview,
   getMentalabaQueue,
   sendMentalabaPending,
@@ -17,11 +18,13 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Pagination } from "@/components/common/Pagination";
 import { cn } from "@/lib/utils";
 import { Loader2, RefreshCw, Send, ShieldCheck, Tags, University, XCircle, Sparkles, Activity, Radar, Clock3, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import type { University as UniversityType } from "@/types/database";
 
 type QueueStatus = "PENDING" | "EXPORTED" | "FAILED" | "REJECTED" | "DRAFT";
 
@@ -36,6 +39,8 @@ export function MentalabaExportPanel() {
   const [overview, setOverview] = useState<MentalabaOverview | null>(null);
   const [status, setStatus] = useState<QueueStatus>("PENDING");
   const [queue, setQueue] = useState<MentalabaQueueItem[]>([]);
+  const [universities, setUniversities] = useState<UniversityType[]>([]);
+  const [selectedUniversityId, setSelectedUniversityId] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoadingOverview, setIsLoadingOverview] = useState(true);
@@ -53,11 +58,12 @@ export function MentalabaExportPanel() {
 
   useEffect(() => {
     void loadOverview();
+    void loadUniversities();
   }, []);
 
   useEffect(() => {
     void loadQueue();
-  }, [status, page]);
+  }, [status, page, selectedUniversityId]);
 
   const loadOverview = async () => {
     setIsLoadingOverview(true);
@@ -77,6 +83,7 @@ export function MentalabaExportPanel() {
       const queueData = await getMentalabaQueue({
         syndication_status: status,
         eligible_only: status === "PENDING",
+        university_id: selectedUniversityId !== "all" ? selectedUniversityId : undefined,
         page,
         limit: pageSize,
       });
@@ -86,6 +93,15 @@ export function MentalabaExportPanel() {
       toast.error(error instanceof Error ? error.message : "Eksport queue yuklanmadi");
     } finally {
       setIsLoadingQueue(false);
+    }
+  };
+
+  const loadUniversities = async () => {
+    try {
+      const result = await getUniversities({ limit: 1000 });
+      setUniversities(result.data);
+    } catch (error) {
+      toast.error("Universitet filtri yuklanmadi");
     }
   };
 
@@ -140,7 +156,8 @@ export function MentalabaExportPanel() {
   const handleBulkSend = async () => {
     setIsBulkSending(true);
     try {
-      const result = await sendMentalabaPending(20);
+      const scopedUniversityId = selectedUniversityId !== "all" ? selectedUniversityId : undefined;
+      const result = await sendMentalabaPending(20, scopedUniversityId);
       toast.success(`${result.exported} ta news yuborildi`);
       if (result.failed > 0) {
         toast.warning(`${result.failed} ta news yiqildi`);
@@ -192,6 +209,12 @@ export function MentalabaExportPanel() {
 
   const handleStatusChange = (value: QueueStatus) => {
     setStatus(value);
+    setPage(1);
+    setExpandedId(null);
+  };
+
+  const handleUniversityChange = (value: string) => {
+    setSelectedUniversityId(value);
     setPage(1);
     setExpandedId(null);
   };
@@ -313,7 +336,30 @@ export function MentalabaExportPanel() {
               </div>
             </div>
 
-            <div className="xl:col-span-2 flex flex-wrap gap-3">
+            <div className="xl:col-span-2 grid gap-3 lg:grid-cols-[minmax(280px,360px)_1fr]">
+              <div className="rounded-3xl border border-border/70 bg-background/80 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">University Scope</p>
+                <div className="mt-3">
+                  <Select value={selectedUniversityId} onValueChange={handleUniversityChange}>
+                    <SelectTrigger className="rounded-2xl">
+                      <SelectValue placeholder="Barcha universitetlar" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Barcha universitetlar</SelectItem>
+                      {universities.map((uni) => (
+                        <SelectItem key={uni.id} value={uni.id}>
+                          {uni.name_uz}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Tanlangan universitet bo‘yicha queue ko‘rasiz va bulk send ham shu scope’da ishlaydi.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
               <Button variant="outline" className="rounded-2xl" onClick={() => void handleSyncTags()} disabled={isSyncingTags}>
                 {isSyncingTags ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tags className="mr-2 h-4 w-4" />}
                 Tag sync
@@ -330,6 +376,7 @@ export function MentalabaExportPanel() {
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Refresh
               </Button>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -375,6 +422,9 @@ export function MentalabaExportPanel() {
               </p>
               <p className="text-sm text-muted-foreground">
                 Jami <span className="font-medium text-foreground">{totalCount}</span> ta yozuv. Sahifa {page}/{totalPages}.
+                {selectedUniversityId !== "all" && (
+                  <span> Tanlangan scope: <span className="font-medium text-foreground">{universities.find((uni) => uni.id === selectedUniversityId)?.name_uz || selectedUniversityId}</span>.</span>
+                )}
               </p>
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
