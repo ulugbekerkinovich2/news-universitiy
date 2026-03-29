@@ -14,6 +14,7 @@ export interface University {
   name_ru: string | null;
   website: string | null;
   logo_url: string | null;
+  mentalaba_id?: number | null;
   created_at: string;
   updated_at: string;
   scrape_status: ScrapeStatus;
