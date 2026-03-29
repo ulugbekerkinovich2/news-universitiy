@@ -387,7 +387,7 @@ export function MentalabaExportPanel() {
                 <div>
                   <p className="text-sm font-semibold text-foreground">Eksport rejimi</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Hozir <span className="font-medium text-foreground">{overview?.export_mode === "auto" ? "Auto" : "Manual"}</span> rejim. Manual default bo‘lib turadi va yuborilgan news avval `non-active` holatda tushadi.
+                    Hozir <span className="font-medium text-foreground">{overview?.export_mode === "auto" ? "Auto" : "Manual"}</span> rejim. Scraperdan kelgan yangi newslar avtomatik approve qilinib yuboriladi, remote tarafda esa avval `non-active` holatda tushadi.
                   </p>
                 </div>
                 <div className="flex items-center gap-3 rounded-full border border-border/70 bg-background px-3 py-2">
@@ -475,7 +475,7 @@ export function MentalabaExportPanel() {
             <div>
               <CardTitle>Eksport Queue</CardTitle>
               <CardDescription>
-                Search, multi-status filter va selection bilan qaysi newsni qachon yuborishni shu yerdan boshqaramiz. Har bir yuborilgan news Mentalaba’da xavfsiz tarzda `non-active` bo‘lib yaratiladi.
+                Search, multi-status filter va selection bilan oqimni nazorat qilasiz. Har bir yuborilgan news Mentalaba’da xavfsiz tarzda `non-active` bo‘lib yaratiladi.
               </CardDescription>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
