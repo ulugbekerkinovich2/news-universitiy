@@ -145,6 +145,13 @@ export function MentalabaExportPanel() {
     }
   };
 
+  const getDeactivateLabel = (item: MentalabaQueueItem) => {
+    if (item.post.syndication_remote_id) {
+      return "Non-active qilish";
+    }
+    return "Reject";
+  };
+
   return (
     <div className="space-y-4">
       <Card>
@@ -302,7 +309,7 @@ export function MentalabaExportPanel() {
                           </Button>
                           <Button variant="outline" onClick={() => void handleReject(post.id)} disabled={isBusy}>
                             <XCircle className="mr-2 h-4 w-4" />
-                            Reject
+                            {getDeactivateLabel(item)}
                           </Button>
                           <Button asChild variant="ghost">
                             <a href={post.source_url} target="_blank" rel="noreferrer">Manba</a>
