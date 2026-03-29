@@ -35,6 +35,10 @@ export interface NewsPost {
   language: string;
   cover_image_id: string | null;
   hash_fingerprint: string | null;
+  moderation_status?: string | null;
+  moderation_notes?: string | null;
+  moderated_by?: string | null;
+  moderated_at?: string | null;
   created_at: string;
   updated_at: string;
   // Joined data

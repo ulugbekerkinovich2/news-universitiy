@@ -178,6 +178,31 @@ export async function getNewsPosts(params?: {
   return request(`/news?${q}`);
 }
 
+export async function getNewsReviewQueue(params?: {
+  moderation_status?: string;
+  has_image?: boolean;
+  page?: number;
+  limit?: number;
+}): Promise<{ data: NewsPost[]; count: number }> {
+  const q = new URLSearchParams();
+  q.set("moderation_status", params?.moderation_status || "PENDING");
+  if (params?.has_image !== undefined) q.set("has_image", String(params.has_image));
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.limit) q.set("limit", String(params.limit));
+  return request(`/news/review/queue?${q}`);
+}
+
+export async function reviewNewsPost(
+  id: string,
+  moderation_status: "PENDING" | "APPROVED" | "REJECTED" | "TRASH",
+  moderation_notes?: string,
+): Promise<NewsPost> {
+  return request(`/news/${id}/review`, {
+    method: "PUT",
+    body: JSON.stringify({ moderation_status, moderation_notes }),
+  });
+}
+
 export async function getNewsPost(id: string): Promise<NewsPost | null> {
   return request<NewsPost>(`/news/${id}`).catch(() => null);
 }
