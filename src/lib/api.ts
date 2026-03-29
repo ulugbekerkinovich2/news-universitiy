@@ -230,6 +230,7 @@ export async function getMentalabaQueue(params?: {
   eligible_only?: boolean;
   university_id?: string;
   search?: string;
+  mapping_missing_only?: boolean;
   page?: number;
   limit?: number;
 }): Promise<{ data: MentalabaQueueItem[]; count: number }> {
@@ -239,6 +240,7 @@ export async function getMentalabaQueue(params?: {
   if (params?.eligible_only !== undefined) q.set("eligible_only", String(params.eligible_only));
   if (params?.university_id) q.set("university_id", params.university_id);
   if (params?.search) q.set("search", params.search);
+  if (params?.mapping_missing_only !== undefined) q.set("mapping_missing_only", String(params.mapping_missing_only));
   if (params?.page) q.set("page", String(params.page));
   if (params?.limit) q.set("limit", String(params.limit));
   return request(`/mentalaba/news-queue?${q}`);

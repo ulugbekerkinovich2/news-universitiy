@@ -45,6 +45,7 @@ export function MentalabaExportPanel() {
   const [universities, setUniversities] = useState<UniversityType[]>([]);
   const [selectedUniversityId, setSelectedUniversityId] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const [mappingMissingOnly, setMappingMissingOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoadingOverview, setIsLoadingOverview] = useState(true);
@@ -81,7 +82,7 @@ export function MentalabaExportPanel() {
 
   useEffect(() => {
     void loadQueue();
-  }, [selectedStatuses, page, selectedUniversityId, deferredSearch]);
+  }, [selectedStatuses, page, selectedUniversityId, deferredSearch, mappingMissingOnly]);
 
   const loadOverview = async () => {
     setIsLoadingOverview(true);
@@ -104,6 +105,7 @@ export function MentalabaExportPanel() {
         eligible_only: selectedStatuses.length === 1 && selectedStatuses[0] === "PENDING",
         university_id: selectedUniversityId !== "all" ? selectedUniversityId : undefined,
         search: deferredSearch.trim() || undefined,
+        mapping_missing_only: mappingMissingOnly,
         page,
         limit: pageSize,
       });
@@ -281,6 +283,14 @@ export function MentalabaExportPanel() {
     setSelectedStatuses(["PENDING"]);
     setSelectedUniversityId("all");
     setSearch("");
+    setMappingMissingOnly(false);
+    setPage(1);
+    setExpandedId(null);
+    setSelectedPostIds([]);
+  };
+
+  const toggleMappingMissingOnly = () => {
+    setMappingMissingOnly((current) => !current);
     setPage(1);
     setExpandedId(null);
     setSelectedPostIds([]);
@@ -528,6 +538,15 @@ export function MentalabaExportPanel() {
                 Status Filter
               </div>
               <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={mappingMissingOnly ? "default" : "outline"}
+                  className="rounded-full"
+                  onClick={toggleMappingMissingOnly}
+                >
+                  Mapping yo'q
+                </Button>
                 {queueStatuses.map((item) => (
                   <Button
                     key={item}
@@ -559,6 +578,9 @@ export function MentalabaExportPanel() {
                 <span> Scope: <span className="font-medium text-foreground">{activeScopeLabel}</span>.</span>
                 {deferredSearch.trim() && (
                   <span> Search: <span className="font-medium text-foreground">"{deferredSearch.trim()}"</span>.</span>
+                )}
+                {mappingMissingOnly && (
+                  <span> Filter: <span className="font-medium text-foreground">Mapping yo'q</span>.</span>
                 )}
               </p>
             </div>
