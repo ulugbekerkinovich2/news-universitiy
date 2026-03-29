@@ -43,6 +43,12 @@ export interface NewsPost {
   syndication_remote_id?: string | null;
   syndication_last_error?: string | null;
   syndication_pushed_at?: string | null;
+  syndication_request_payload?: string | null;
+  syndication_response_payload?: string | null;
+  syndication_image_payload?: string | null;
+  syndication_image_response?: string | null;
+  syndication_last_action?: string | null;
+  syndication_last_status_code?: number | null;
   created_at: string;
   updated_at: string;
   // Joined data

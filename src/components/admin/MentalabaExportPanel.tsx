@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, RefreshCw, Send, ShieldCheck, Tags, University, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -37,6 +38,7 @@ export function MentalabaExportPanel() {
   const [isSyncingUniversities, setIsSyncingUniversities] = useState(false);
   const [isBulkSending, setIsBulkSending] = useState(false);
   const [busyPostId, setBusyPostId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const stats = useMemo(() => overview?.news_by_status || {}, [overview]);
 
@@ -58,6 +60,10 @@ export function MentalabaExportPanel() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const toggleExpanded = (postId: string) => {
+    setExpandedId((current) => current === postId ? null : postId);
   };
 
   const handleModeToggle = async (checked: boolean) => {
@@ -298,6 +304,20 @@ export function MentalabaExportPanel() {
                             {post.syndication_last_error}
                           </p>
                         )}
+                        <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+                          <div className="rounded-xl border border-border/60 bg-background/60 px-3 py-2">
+                            <span className="block uppercase tracking-[0.18em]">Action</span>
+                            <span className="mt-1 block font-medium text-foreground">{post.syndication_last_action || "Hali yo'q"}</span>
+                          </div>
+                          <div className="rounded-xl border border-border/60 bg-background/60 px-3 py-2">
+                            <span className="block uppercase tracking-[0.18em]">HTTP</span>
+                            <span className="mt-1 block font-medium text-foreground">{post.syndication_last_status_code ?? "?"}</span>
+                          </div>
+                          <div className="rounded-xl border border-border/60 bg-background/60 px-3 py-2">
+                            <span className="block uppercase tracking-[0.18em]">Remote ID</span>
+                            <span className="mt-1 block truncate font-medium text-foreground">{post.syndication_remote_id || "Hali yo'q"}</span>
+                          </div>
+                        </div>
                         <Separator />
                         <div className="flex flex-wrap gap-2">
                           <Button
@@ -314,7 +334,46 @@ export function MentalabaExportPanel() {
                           <Button asChild variant="ghost">
                             <a href={post.source_url} target="_blank" rel="noreferrer">Manba</a>
                           </Button>
+                          <Button variant="secondary" onClick={() => toggleExpanded(post.id)}>
+                            {expandedId === post.id ? "Detalni yopish" : "API detail"}
+                          </Button>
                         </div>
+                        {expandedId === post.id && (
+                          <div className="grid gap-4 xl:grid-cols-2">
+                            <div className="space-y-2">
+                              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Image Upload Request</p>
+                              <ScrollArea className="h-48 rounded-2xl border border-border/70 bg-background/80 p-3">
+                                <pre className="text-xs leading-5 text-foreground whitespace-pre-wrap">
+                                  {post.syndication_image_payload || "Hali yuborilmagan"}
+                                </pre>
+                              </ScrollArea>
+                            </div>
+                            <div className="space-y-2">
+                              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Image Upload Response</p>
+                              <ScrollArea className="h-48 rounded-2xl border border-border/70 bg-background/80 p-3">
+                                <pre className="text-xs leading-5 text-foreground whitespace-pre-wrap">
+                                  {post.syndication_image_response || "Response yo'q"}
+                                </pre>
+                              </ScrollArea>
+                            </div>
+                            <div className="space-y-2">
+                              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">News Request</p>
+                              <ScrollArea className="h-56 rounded-2xl border border-border/70 bg-background/80 p-3">
+                                <pre className="text-xs leading-5 text-foreground whitespace-pre-wrap">
+                                  {post.syndication_request_payload || "Hali yuborilmagan"}
+                                </pre>
+                              </ScrollArea>
+                            </div>
+                            <div className="space-y-2">
+                              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">News Response</p>
+                              <ScrollArea className="h-56 rounded-2xl border border-border/70 bg-background/80 p-3">
+                                <pre className="text-xs leading-5 text-foreground whitespace-pre-wrap">
+                                  {post.syndication_response_payload || post.syndication_last_error || "Response yo'q"}
+                                </pre>
+                              </ScrollArea>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
