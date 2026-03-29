@@ -178,7 +178,7 @@ export function MentalabaExportPanel() {
     try {
       const scopedUniversityId = selectedUniversityId !== "all" ? selectedUniversityId : undefined;
       const result = await sendMentalabaPending(20, scopedUniversityId);
-      toast.success(`${result.exported} ta news yuborildi`);
+      toast.success(`${result.exported} ta news non-active holatda yuborildi`);
       if (result.failed > 0) {
         toast.warning(`${result.failed} ta news yiqildi`);
       }
@@ -198,7 +198,7 @@ export function MentalabaExportPanel() {
     setIsSendingSelected(true);
     try {
       const result = await sendSelectedMentalabaNews(selectedPostIds);
-      toast.success(`${result.exported} ta tanlangan news yuborildi`);
+      toast.success(`${result.exported} ta tanlangan news non-active holatda yuborildi`);
       if (result.failed > 0) {
         toast.warning(`${result.failed} ta yozuv yuborilmadi`);
       }
@@ -216,7 +216,7 @@ export function MentalabaExportPanel() {
     try {
       const result = await sendNewsToMentalaba(postId);
       if (result.syndication_status === "EXPORTED") {
-        toast.success("News Mentalaba'ga yuborildi");
+        toast.success("News Mentalaba'ga non-active holatda yuborildi");
       } else {
         toast.error(result.syndication_last_error || "Yuborishda xato");
       }
@@ -387,7 +387,7 @@ export function MentalabaExportPanel() {
                 <div>
                   <p className="text-sm font-semibold text-foreground">Eksport rejimi</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Hozir <span className="font-medium text-foreground">{overview?.export_mode === "auto" ? "Auto" : "Manual"}</span> rejim. Manual default bo‘lib turadi.
+                    Hozir <span className="font-medium text-foreground">{overview?.export_mode === "auto" ? "Auto" : "Manual"}</span> rejim. Manual default bo‘lib turadi va yuborilgan news avval `non-active` holatda tushadi.
                   </p>
                 </div>
                 <div className="flex items-center gap-3 rounded-full border border-border/70 bg-background px-3 py-2">
@@ -475,7 +475,7 @@ export function MentalabaExportPanel() {
             <div>
               <CardTitle>Eksport Queue</CardTitle>
               <CardDescription>
-                Search, multi-status filter va selection bilan qaysi newsni qachon yuborishni shu yerdan boshqaramiz.
+                Search, multi-status filter va selection bilan qaysi newsni qachon yuborishni shu yerdan boshqaramiz. Har bir yuborilgan news Mentalaba’da xavfsiz tarzda `non-active` bo‘lib yaratiladi.
               </CardDescription>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
