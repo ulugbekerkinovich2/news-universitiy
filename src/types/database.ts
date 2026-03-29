@@ -39,6 +39,10 @@ export interface NewsPost {
   moderation_notes?: string | null;
   moderated_by?: string | null;
   moderated_at?: string | null;
+  syndication_status?: string | null;
+  syndication_remote_id?: string | null;
+  syndication_last_error?: string | null;
+  syndication_pushed_at?: string | null;
   created_at: string;
   updated_at: string;
   // Joined data
@@ -141,4 +145,26 @@ export interface ExportedNewsPost {
     images: Array<{ stored_url: string | null; original_url: string }>;
     videos: Array<{ url: string; provider: string | null }>;
   };
+}
+
+export interface MentalabaOverview {
+  export_mode: "manual" | "auto";
+  token_configured: boolean;
+  tags_count: number;
+  remote_universities_count: number;
+  mapped_universities_count: number;
+  unmapped_universities_count: number;
+  news_by_status: Record<string, number>;
+  last_tags_sync_at?: string | null;
+  last_universities_sync_at?: string | null;
+}
+
+export interface MentalabaQueueItem {
+  post: NewsPost;
+  is_exportable: boolean;
+  export_reason: string;
+  suggested_tag_ids: number[];
+  suggested_tags: string[];
+  cover_image_url?: string | null;
+  mentalaba_university_id?: number | null;
 }

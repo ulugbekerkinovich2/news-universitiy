@@ -12,7 +12,7 @@ const navItems = [
   { href: "/news", label: "News", icon: Newspaper },
   { href: "/api-docs", label: "API", icon: Book },
   { href: "/dashboard", label: "Dashboard", icon: BarChart3, permission: "view_dashboard" },
-  { href: "/admin", label: "Admin", icon: Settings, anyPermissions: ["manage_users", "manage_api_keys", "manage_settings", "manage_universities"] },
+  { href: "/admin", label: "Admin", icon: Settings, anyPermissions: ["manage_news", "manage_users", "manage_api_keys", "manage_settings", "manage_universities"] },
   { href: "/export", label: "Export", icon: Download, permission: "export_data" },
 ];
 

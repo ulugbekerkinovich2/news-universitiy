@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { AdminSwaggerPanel } from "@/components/admin/AdminSwaggerPanel";
+import { MentalabaExportPanel } from "@/components/admin/MentalabaExportPanel";
 import { NewsModeration } from "@/components/admin/NewsModeration";
 import { JsonUploader } from "@/components/admin/JsonUploader";
 import { UserManagement } from "@/components/admin/UserManagement";
@@ -12,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { getStats, updateAllUniversityLogos } from "@/lib/api";
-import { GraduationCap, Newspaper, Database, Settings, Users, Upload, Key, Image, Loader2, Timer, BookOpen, FileCode2 } from "lucide-react";
+import { GraduationCap, Newspaper, Database, Settings, Users, Upload, Key, Image, Loader2, Timer, BookOpen, FileCode2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -30,6 +31,7 @@ export default function Admin() {
   const availableTabs = [
     "swagger",
     hasPermission("manage_news") && "news",
+    hasPermission("manage_news") && "mentalaba",
     hasPermission("manage_settings") && "scheduler",
     hasPermission("manage_users") && "users",
     hasPermission("manage_api_keys") && "api-keys",
@@ -138,6 +140,12 @@ export default function Admin() {
                 <span className="hidden sm:inline">News Review</span>
               </TabsTrigger>
             )}
+            {hasPermission("manage_news") && (
+              <TabsTrigger value="mentalaba" className="gap-2">
+                <Send className="h-4 w-4" />
+                <span className="hidden sm:inline">Mentalaba</span>
+              </TabsTrigger>
+            )}
             {hasPermission("manage_settings") && (
               <TabsTrigger value="scheduler" className="gap-2">
                 <Timer className="h-4 w-4" />
@@ -176,6 +184,10 @@ export default function Admin() {
 
           {hasPermission("manage_news") && <TabsContent value="news">
             <NewsModeration />
+          </TabsContent>}
+
+          {hasPermission("manage_news") && <TabsContent value="mentalaba">
+            <MentalabaExportPanel />
           </TabsContent>}
 
           {hasPermission("manage_settings") && <TabsContent value="scheduler">

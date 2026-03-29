@@ -56,7 +56,7 @@ const App = () => (
               <Route
                 path="/admin"
                 element={
-                  <ProtectedRoute requiredAnyPermission={["manage_users", "manage_api_keys", "manage_settings", "manage_universities"]}>
+                  <ProtectedRoute requiredAnyPermission={["manage_news", "manage_users", "manage_api_keys", "manage_settings", "manage_universities"]}>
                     <Admin />
                   </ProtectedRoute>
                 }

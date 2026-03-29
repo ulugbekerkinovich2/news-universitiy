@@ -26,10 +26,12 @@ import type {
   ScrapeJob, 
   ScrapeJobEvent, 
   ScrapeStatus, 
-  JobStatus 
+  JobStatus,
+  MentalabaOverview,
+  MentalabaQueueItem,
 } from "@/types/database";
 
-export type { ScrapeStatus, JobStatus, University, MediaAsset, NewsPost, ScrapeJob, ScrapeJobEvent };
+export type { ScrapeStatus, JobStatus, University, MediaAsset, NewsPost, ScrapeJob, ScrapeJobEvent, MentalabaOverview, MentalabaQueueItem };
 
 export interface UniversityImportData {
   id: string;
@@ -200,6 +202,59 @@ export async function reviewNewsPost(
   return request(`/news/${id}/review`, {
     method: "PUT",
     body: JSON.stringify({ moderation_status, moderation_notes }),
+  });
+}
+
+export async function getMentalabaOverview(): Promise<MentalabaOverview> {
+  return request("/mentalaba/overview");
+}
+
+export async function updateMentalabaExportMode(export_mode: "manual" | "auto"): Promise<{ export_mode: "manual" | "auto" }> {
+  return request("/mentalaba/settings", {
+    method: "PATCH",
+    body: JSON.stringify({ export_mode }),
+  });
+}
+
+export async function syncMentalabaTags(): Promise<{ count: number }> {
+  return request("/mentalaba/sync/tags", { method: "POST" });
+}
+
+export async function syncMentalabaUniversities(): Promise<{ count: number; matched: number; unmatched: number }> {
+  return request("/mentalaba/sync/universities", { method: "POST" });
+}
+
+export async function getMentalabaQueue(params?: {
+  syndication_status?: string;
+  eligible_only?: boolean;
+  page?: number;
+  limit?: number;
+}): Promise<{ data: MentalabaQueueItem[]; count: number }> {
+  const q = new URLSearchParams();
+  if (params?.syndication_status) q.set("syndication_status", params.syndication_status);
+  if (params?.eligible_only !== undefined) q.set("eligible_only", String(params.eligible_only));
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.limit) q.set("limit", String(params.limit));
+  return request(`/mentalaba/news-queue?${q}`);
+}
+
+export async function sendNewsToMentalaba(postId: string): Promise<{
+  id: string;
+  syndication_status: string;
+  syndication_remote_id?: string | null;
+  syndication_last_error?: string | null;
+}> {
+  return request(`/mentalaba/news/${postId}/send`, { method: "POST" });
+}
+
+export async function sendMentalabaPending(limit = 20): Promise<{ processed: number; exported: number; failed: number }> {
+  return request(`/mentalaba/news/send-bulk?limit=${limit}`, { method: "POST" });
+}
+
+export async function updateMentalabaQueueStatus(postId: string, syndication_status: string): Promise<NewsPost> {
+  return request(`/mentalaba/news/${postId}/status`, {
+    method: "PUT",
+    body: JSON.stringify({ syndication_status }),
   });
 }
 
