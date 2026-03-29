@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
   getUniversities,
   getMentalabaOverview,
   getMentalabaQueue,
+  sendSelectedMentalabaNews,
   sendMentalabaPending,
   sendNewsToMentalaba,
   syncMentalabaTags,
@@ -18,11 +19,13 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Pagination } from "@/components/common/Pagination";
 import { cn } from "@/lib/utils";
-import { Loader2, RefreshCw, Send, ShieldCheck, Tags, University, XCircle, Sparkles, Activity, Radar, Clock3, AlertTriangle } from "lucide-react";
+import { Loader2, RefreshCw, Send, ShieldCheck, Tags, University, XCircle, Sparkles, Activity, Radar, Clock3, AlertTriangle, Search, Filter } from "lucide-react";
 import { toast } from "sonner";
 import type { University as UniversityType } from "@/types/database";
 
@@ -37,10 +40,11 @@ function formatDate(value?: string | null) {
 
 export function MentalabaExportPanel() {
   const [overview, setOverview] = useState<MentalabaOverview | null>(null);
-  const [status, setStatus] = useState<QueueStatus>("PENDING");
+  const [selectedStatuses, setSelectedStatuses] = useState<QueueStatus[]>(["PENDING"]);
   const [queue, setQueue] = useState<MentalabaQueueItem[]>([]);
   const [universities, setUniversities] = useState<UniversityType[]>([]);
   const [selectedUniversityId, setSelectedUniversityId] = useState<string>("all");
+  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoadingOverview, setIsLoadingOverview] = useState(true);
@@ -48,13 +52,27 @@ export function MentalabaExportPanel() {
   const [isSyncingTags, setIsSyncingTags] = useState(false);
   const [isSyncingUniversities, setIsSyncingUniversities] = useState(false);
   const [isBulkSending, setIsBulkSending] = useState(false);
+  const [isSendingSelected, setIsSendingSelected] = useState(false);
   const [busyPostId, setBusyPostId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedPostIds, setSelectedPostIds] = useState<string[]>([]);
   const pageSize = 12;
+  const deferredSearch = useDeferredValue(search);
 
   const stats = useMemo(() => overview?.news_by_status || {}, [overview]);
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-  const isBusy = isSyncingTags || isSyncingUniversities || isBulkSending;
+  const isBusy = isSyncingTags || isSyncingUniversities || isBulkSending || isSendingSelected;
+  const selectableQueue = useMemo(
+    () => queue.filter((item) => item.is_exportable).map((item) => item.post.id),
+    [queue],
+  );
+  const allSelectableChecked = selectableQueue.length > 0 && selectableQueue.every((id) => selectedPostIds.includes(id));
+  const activeScopeLabel = selectedUniversityId !== "all"
+    ? universities.find((uni) => uni.id === selectedUniversityId)?.name_uz || selectedUniversityId
+    : "Barcha universitetlar";
+  const selectedSummary = selectedStatuses.length === queueStatuses.length
+    ? "Barcha statuslar"
+    : selectedStatuses.join(", ");
 
   useEffect(() => {
     void loadOverview();
@@ -63,7 +81,7 @@ export function MentalabaExportPanel() {
 
   useEffect(() => {
     void loadQueue();
-  }, [status, page, selectedUniversityId]);
+  }, [selectedStatuses, page, selectedUniversityId, deferredSearch]);
 
   const loadOverview = async () => {
     setIsLoadingOverview(true);
@@ -81,9 +99,11 @@ export function MentalabaExportPanel() {
     setIsLoadingQueue(true);
     try {
       const queueData = await getMentalabaQueue({
-        syndication_status: status,
-        eligible_only: status === "PENDING",
+        syndication_status: selectedStatuses[0],
+        syndication_statuses: selectedStatuses,
+        eligible_only: selectedStatuses.length === 1 && selectedStatuses[0] === "PENDING",
         university_id: selectedUniversityId !== "all" ? selectedUniversityId : undefined,
+        search: deferredSearch.trim() || undefined,
         page,
         limit: pageSize,
       });
@@ -170,6 +190,27 @@ export function MentalabaExportPanel() {
     }
   };
 
+  const handleSendSelected = async () => {
+    if (selectedPostIds.length === 0) {
+      toast.warning("Avval yuboriladigan newslarni tanlang");
+      return;
+    }
+    setIsSendingSelected(true);
+    try {
+      const result = await sendSelectedMentalabaNews(selectedPostIds);
+      toast.success(`${result.exported} ta tanlangan news yuborildi`);
+      if (result.failed > 0) {
+        toast.warning(`${result.failed} ta yozuv yuborilmadi`);
+      }
+      setSelectedPostIds([]);
+      await refreshAll();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Tanlangan newslarni yuborishda xato");
+    } finally {
+      setIsSendingSelected(false);
+    }
+  };
+
   const handleSend = async (postId: string) => {
     setBusyPostId(postId);
     try {
@@ -207,16 +248,58 @@ export function MentalabaExportPanel() {
     return "Reject";
   };
 
-  const handleStatusChange = (value: QueueStatus) => {
-    setStatus(value);
+  const toggleStatus = (value: QueueStatus) => {
+    setSelectedStatuses((current) => {
+      if (current.includes(value)) {
+        if (current.length === 1) {
+          return current;
+        }
+        return current.filter((item) => item !== value);
+      }
+      return [...current, value];
+    });
     setPage(1);
     setExpandedId(null);
+    setSelectedPostIds([]);
   };
 
   const handleUniversityChange = (value: string) => {
     setSelectedUniversityId(value);
     setPage(1);
     setExpandedId(null);
+    setSelectedPostIds([]);
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setPage(1);
+    setExpandedId(null);
+    setSelectedPostIds([]);
+  };
+
+  const resetFilters = () => {
+    setSelectedStatuses(["PENDING"]);
+    setSelectedUniversityId("all");
+    setSearch("");
+    setPage(1);
+    setExpandedId(null);
+    setSelectedPostIds([]);
+  };
+
+  const toggleSelectPost = (postId: string, checked: boolean) => {
+    setSelectedPostIds((current) => (
+      checked
+        ? Array.from(new Set([...current, postId]))
+        : current.filter((item) => item !== postId)
+    ));
+  };
+
+  const toggleSelectAllVisible = (checked: boolean) => {
+    if (!checked) {
+      setSelectedPostIds((current) => current.filter((id) => !selectableQueue.includes(id)));
+      return;
+    }
+    setSelectedPostIds((current) => Array.from(new Set([...current, ...selectableQueue])));
   };
 
   const metricCards = [
@@ -372,6 +455,10 @@ export function MentalabaExportPanel() {
                 {isBulkSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                 Pending yuborish
               </Button>
+              <Button variant="secondary" className="rounded-2xl" onClick={() => void handleSendSelected()} disabled={isSendingSelected || selectedPostIds.length === 0 || !overview?.token_configured}>
+                {isSendingSelected ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                Tanlanganlarni yuborish
+              </Button>
               <Button variant="ghost" className="rounded-2xl" onClick={() => void refreshAll()} disabled={isBusy && isLoadingQueue}>
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Refresh
@@ -388,14 +475,14 @@ export function MentalabaExportPanel() {
             <div>
               <CardTitle>Eksport Queue</CardTitle>
               <CardDescription>
-                Qaysi news yuborilgan, qaysisi pending yoki reject ekanini shu yerdan boshqaramiz.
+                Search, multi-status filter va selection bilan qaysi newsni qachon yuborishni shu yerdan boshqaramiz.
               </CardDescription>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
               {queueStatuses.map((item) => (
                 <div key={item} className={cn(
-                  "rounded-2xl border px-3 py-2 text-center",
-                  status === item ? "border-primary/30 bg-primary/10" : "border-border/60 bg-background/60"
+                  "rounded-2xl border px-3 py-2 text-center transition-colors",
+                  selectedStatuses.includes(item) ? "border-primary/30 bg-primary/10" : "border-border/60 bg-background/60"
                 )}>
                   <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">{item}</p>
                   <p className="mt-1 text-lg font-semibold text-foreground">{stats[item] || 0}</p>
@@ -405,33 +492,102 @@ export function MentalabaExportPanel() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Tabs value={status} onValueChange={(value) => handleStatusChange(value as QueueStatus)}>
+          <Tabs value={selectedStatuses[0]} onValueChange={(value) => toggleStatus(value as QueueStatus)}>
             <TabsList className="flex h-auto flex-wrap gap-2 rounded-2xl bg-muted/40 p-1.5">
               {queueStatuses.map((item) => (
-                <TabsTrigger key={item} value={item} className="rounded-xl px-4">
+                <TabsTrigger
+                  key={item}
+                  value={item}
+                  className={cn(
+                    "rounded-xl px-4",
+                    selectedStatuses.includes(item) && "border border-primary/20 bg-primary/10 text-primary",
+                  )}
+                >
                   {item}
                 </TabsTrigger>
               ))}
             </TabsList>
           </Tabs>
 
+          <div className="grid gap-3 rounded-3xl border border-border/60 bg-card/50 p-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(260px,0.9fr)_auto]">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Search</p>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(event) => handleSearchChange(event.target.value)}
+                  placeholder="Sarlavha, universitet yoki kontent bo‘yicha qidiring"
+                  className="rounded-2xl pl-9"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                <Filter className="h-3.5 w-3.5" />
+                Status Filter
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {queueStatuses.map((item) => (
+                  <Button
+                    key={item}
+                    type="button"
+                    size="sm"
+                    variant={selectedStatuses.includes(item) ? "default" : "outline"}
+                    className="rounded-full"
+                    onClick={() => toggleStatus(item)}
+                  >
+                    {item}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-end">
+              <Button type="button" variant="ghost" className="rounded-2xl" onClick={resetFilters}>
+                Filterni tozalash
+              </Button>
+            </div>
+          </div>
+
           <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-background/50 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-sm font-medium text-foreground">
-                {status} oqimi
+                {selectedSummary} oqimi
               </p>
               <p className="text-sm text-muted-foreground">
                 Jami <span className="font-medium text-foreground">{totalCount}</span> ta yozuv. Sahifa {page}/{totalPages}.
-                {selectedUniversityId !== "all" && (
-                  <span> Tanlangan scope: <span className="font-medium text-foreground">{universities.find((uni) => uni.id === selectedUniversityId)?.name_uz || selectedUniversityId}</span>.</span>
+                <span> Scope: <span className="font-medium text-foreground">{activeScopeLabel}</span>.</span>
+                {deferredSearch.trim() && (
+                  <span> Search: <span className="font-medium text-foreground">"{deferredSearch.trim()}"</span>.</span>
                 )}
               </p>
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Activity className="h-4 w-4 text-primary" />
-              Faqat tayyor yozuvlar tezroq ko‘rinsin deb `Pending` holatda eligible-only filter ishlaydi.
+            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <Activity className="h-4 w-4 text-primary" />
+                Faqat `Pending` tanlanganda eligible-only filter ishlaydi.
+              </div>
+              <div className="rounded-full border border-border/60 bg-background/70 px-3 py-1 text-foreground">
+                Tanlanganlar: {selectedPostIds.length}
+              </div>
             </div>
           </div>
+
+          {queue.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/60 bg-background/50 px-4 py-3">
+              <label className="flex items-center gap-3 text-sm text-foreground">
+                <Checkbox
+                  checked={allSelectableChecked}
+                  onCheckedChange={(checked) => toggleSelectAllVisible(checked === true)}
+                  disabled={selectableQueue.length === 0}
+                />
+                Shu sahifadagi eksportga tayyor yozuvlarni tanlash
+              </label>
+              <p className="text-xs text-muted-foreground">
+                {selectableQueue.length} ta exportable news topildi. Tanlanganlari bittada yuboriladi.
+              </p>
+            </div>
+          )}
 
           {isLoadingQueue ? (
             <div className="space-y-4">
@@ -461,9 +617,18 @@ export function MentalabaExportPanel() {
               {queue.map((item) => {
                 const post = item.post;
                 const isBusy = busyPostId === post.id;
+                const isChecked = selectedPostIds.includes(post.id);
                 return (
                   <div key={post.id} className="rounded-3xl border border-border/60 bg-card/70 p-4">
                     <div className="flex flex-col gap-4 lg:flex-row">
+                      <div className="flex items-start justify-between gap-3 lg:w-10 lg:flex-col lg:items-center">
+                        <Checkbox
+                          checked={isChecked}
+                          onCheckedChange={(checked) => toggleSelectPost(post.id, checked === true)}
+                          disabled={!item.is_exportable || isBusy}
+                          className="mt-1"
+                        />
+                      </div>
                       {item.cover_image_url ? (
                         <img
                           src={item.cover_image_url}
@@ -501,6 +666,11 @@ export function MentalabaExportPanel() {
                         {post.syndication_last_error && (
                           <p className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                             {post.syndication_last_error}
+                          </p>
+                        )}
+                        {!item.is_exportable && (
+                          <p className="rounded-xl border border-border/70 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                            Bu yozuv tanlab yuborish ro‘yxatiga kirmaydi. Sabab: {item.export_reason}
                           </p>
                         )}
                         <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
